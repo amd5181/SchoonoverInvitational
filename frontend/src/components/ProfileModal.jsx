@@ -41,7 +41,11 @@ export default function ProfileModal({ open, onClose }) {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md" data-testid="profile-modal">
+      <DialogContent
+        className="sm:max-w-md"
+        data-testid="profile-modal"
+        onOpenAutoFocus={e => e.preventDefault()}
+      >
         <DialogHeader className="pb-1">
           <DialogTitle className="font-heading font-bold text-lg">Edit Profile</DialogTitle>
           <DialogDescription className="text-xs">Update your name, email, or PIN.</DialogDescription>
@@ -53,9 +57,6 @@ export default function ProfileModal({ open, onClose }) {
               data-testid="profile-name"
               value={name}
               onChange={e => setName(e.target.value)}
-              autoFocus={false}
-              // Prevent keyboard from popping on mobile open
-              onFocus={e => { if (window.innerWidth < 768) e.target.blur(); setTimeout(() => e.target.focus(), 100); }}
               className="h-10 bg-slate-50 focus:border-[#1B4332] text-sm"
             />
           </div>

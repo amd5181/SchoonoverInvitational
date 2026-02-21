@@ -811,6 +811,21 @@ async def get_leaderboard(tournament_id: str):
     scores = cache.get("scores", []) if cache else []
     last_updated = cache.get("last_updated", "") if cache else ""
 
+    # Normalize CUT players so initial page load matches manual refresh behavior:
+    # show actual score instead of "CUT" in total_score, trim rounds to 2.
+    for s in scores:
+        if s.get("is_cut"):
+            if s.get("total_score") == "CUT" and s.get("score_int") is not None:
+                val = s["score_int"]
+                if val == 0:
+                    s["total_score"] = "E"
+                elif val > 0:
+                    s["total_score"] = f"+{val}"
+                else:
+                    s["total_score"] = str(val)
+            if len(s.get("rounds", [])) > 2:
+                s["rounds"] = s["rounds"][:2]
+
     # Make sure positions are assigned (in case cache pre-dates this feature)
     if scores:
         scores = assign_positions(scores)
@@ -937,16 +952,27 @@ async def manual_refresh(tournament_id: str, user_id: str = Query(...)):
 # ── History ──
 HISTORY = [
     {"year": 2025, "tournaments": [
-        {"name": "Masters", "winners": ["Justin Blazel", "Carson Custer", "Toby Cressman"]}]},
-    {"year": 2024, "tournaments": [{"name": "Masters", "winners": ["Andy Albert", "Ian Very", "Matt Walker"]}]},
-    {"year": 2023, "tournaments": [{"name": "Masters", "winners": ["Andrew David", "Colin Scarola", "Justin Rosenthal"]}]},
-    {"year": 2022, "tournaments": [{"name": "Masters", "winners": ["Justin Blazel", "Rob Platz", "Andrew David"]}]},
-    {"year": 2021, "tournaments": [{"name": "Masters", "winners": ["Matt Cheyne", "Andrew David", "Sam Lanzino"]}]},
-    {"year": 2020, "tournaments": [{"name": "Masters", "winners": ["Alan McBride", "Matt Ward", "Sam Lanzino"]}]},
-    {"year": 2019, "tournaments": [{"name": "Masters", "winners": ["Carson Custer", "Mike Zalac", "Matt Ward"]}]},
-    {"year": 2018, "tournaments": [{"name": "Masters", "winners": ["Carson Custer", "Matt Hill", "Carson Custer"]}]},
-    {"year": 2017, "tournaments": [{"name": "Masters", "winners": ["Sam Lanzino", "Matt Hill", "Aaron Levine"]}]},
-    {"year": 2016, "tournaments": [{"name": "Masters", "winners": ["Dylan Frank", "Andrew David", "Curtis David"]}]},
+        {"name": "Masters", "winners": ["Brandon Nowak", "Mike Gnaster", "Dave Magurno"]}]},
+    {"year": 2024, "tournaments": [
+        {"name": "Masters", "winners": ["Chad Ewald", "Pete Shoemaker", "Mike Gnaster"]}]},
+    {"year": 2023, "tournaments": [
+        {"name": "Masters", "winners": ["Vance Hodges", "Joe Girard", "Zach Lehmann"]}]},
+    {"year": 2022, "tournaments": [
+        {"name": "Masters", "winners": ["Dave Magurno", "Nick Woody", "John Babcock"]}]},
+    {"year": 2021, "tournaments": [
+        {"name": "Masters", "winners": ["Daryl Gabriel", "Andrew David", "Mike Gnaster"]}]},
+    {"year": 2020, "tournaments": [
+        {"name": "Masters", "winners": ["Curtis Schoonover", "Mike Gnaster", "Blake Gabriel"]}]},
+    {"year": 2019, "tournaments": [
+        {"name": "Masters", "winners": ["Mike Rettler", "Andrew Barden", "Curtis Schoonover"]}]},
+    {"year": 2018, "tournaments": [
+        {"name": "Masters", "winners": ["Clark Odom", "Jason Depp", "Jeff Nagel"]}]},
+    {"year": 2017, "tournaments": [
+        {"name": "Masters", "winners": ["Adam Haase", "Pete Shoemaker", "Tim Burnham"]}]},
+    {"year": 2016, "tournaments": [
+        {"name": "Masters", "winners": ["Mike Walters", "Jason Depp", "Jeff Nagel"]}]},
+    {"year": 2015, "tournaments": [
+        {"name": "Masters", "winners": ["Vance Hodges", "Adam Haase", "Scott Resch"]}]},
 ]
 
 @api_router.get("/history")

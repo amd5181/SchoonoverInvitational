@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timezone, timedelta
+import re
 import requests
 import asyncio
 import io
@@ -75,7 +76,6 @@ def parse_payout_text(text: str) -> List[Dict]:
       2: 2160000               <- plain numbers
     Returns list of {"place": int, "amount": int} up to 70 places.
     """
-    import re
     lines = [l.strip() for l in text.strip().split('\n') if l.strip()]
     payouts = []
     for line in lines:
@@ -488,7 +488,6 @@ async def admin_fetch_odds(slot: int, user_id: str = Query(...), body: dict = {}
     odds_text = body.get("odds_text", "")
     if not odds_text:
         raise HTTPException(status_code=400, detail="Paste odds data from FanDuel/DraftKings")
-    import re
     lines = [l.strip() for l in odds_text.strip().split('\n') if l.strip()]
     parsed_odds = {}
     for line in lines:

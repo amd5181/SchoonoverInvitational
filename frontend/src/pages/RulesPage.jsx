@@ -61,6 +61,7 @@ export default function RulesPage() {
           <h2 className="font-heading font-bold text-lg text-[#0F172A]">LIVE & PROJECTED</h2>
         </div>
         <p className="text-sm text-slate-600">During the tournament, earnings shown are <strong>projected</strong> based on current standings — they update as golfers move up and down the leaderboard. Scores are estimates and may change once the final tournament earnings are announced, which will be locked once the tournament is complete.</p>
+      </div>
 
       {/* How to Win */}
       <div className="bg-gradient-to-br from-[#1B4332] to-[#081C15] rounded-xl p-5 text-white">

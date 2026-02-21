@@ -67,24 +67,44 @@ class PayoutScheduleUpdate(BaseModel):
 # ── Payout Schedule Helpers ──
 def parse_payout_text(text: str) -> List[Dict]:
     """
-    Parse payout text. Accepts formats like:
-      1: $3,600,000
-      2: 2160000
-      3: 1,350,000
+    Parse payout text. Handles tab-separated, colon-separated, header rows,
+    $ signs and commas. Accepts formats like:
+      Position\tAmount          <- header row, skipped
+      1\t$4,200,000            <- tab-separated with $ and commas
+      1: $3,600,000            <- colon-separated
+      2: 2160000               <- plain numbers
     Returns list of {"place": int, "amount": int} up to 70 places.
     """
     import re
     lines = [l.strip() for l in text.strip().split('\n') if l.strip()]
     payouts = []
     for line in lines:
-        # Strip common separators
-        parts = re.split(r'[\t:,\s]+', line.replace('$', '').replace(',', ''))
-        nums = [p for p in parts if p.isdigit()]
-        if len(nums) >= 2:
-            place = int(nums[0])
-            amount = int(nums[1])
-            if 1 <= place <= 70:
-                payouts.append({"place": place, "amount": amount})
+        # Clean the line: remove $ and commas BEFORE splitting
+        cleaned = line.replace('$', '').replace(',', '')
+        # Split on tab, colon, or whitespace
+        parts = re.split(r'[\t:]+|\s+', cleaned.strip())
+        parts = [p.strip() for p in parts if p.strip()]
+        if len(parts) < 2:
+            continue
+        # Skip header rows where first token is not a number
+        try:
+            place = int(parts[0])
+        except ValueError:
+            continue
+        # Amount is the last numeric token
+        amount_str = None
+        for p in reversed(parts[1:]):
+            if re.match(r'^\d+(\.\d+)?$', p):
+                amount_str = p
+                break
+        if amount_str is None:
+            continue
+        try:
+            amount = int(float(amount_str))
+        except ValueError:
+            continue
+        if 1 <= place <= 70 and amount > 0:
+            payouts.append({"place": place, "amount": amount})
     # Deduplicate, keep last value for each place
     seen = {}
     for p in payouts:

@@ -150,7 +150,7 @@ export default function HomePage() {
               <div className="w-px bg-white/10 hidden md:block" />
               <div className="text-center">
                 <p className="text-[#CCFF00] font-numbers font-extrabold text-2xl">{t?.golfer_count ?? 0}</p>
-                <p className="text-white/50 text-xs mt-0.5">In the Field</p>
+                <p className="text-white/50 text-xs mt-0.5">Golfers In the Field</p>
               </div>
             </div>
           </div>

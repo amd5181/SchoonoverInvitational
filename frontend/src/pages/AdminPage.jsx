@@ -341,7 +341,7 @@ export default function AdminPage() {
                     className="h-9 bg-emerald-700 text-white hover:bg-emerald-600"
                     data-testid={`payout-btn-${t.slot}`}>
                     <DollarSign className="w-4 h-4 mr-1" />
-                    {t.payout_schedule?.length > 0 ? `Edit Payouts (${t.payout_schedule.length} places)` : Set Payout Schedule}
+                    {t.payout_schedule?.length > 0 ? `Edit Payouts (${t.payout_schedule.length} places)` : 'Set Payout Schedule'}
                   </Button>
                   {t.payout_schedule?.length > 0 && (
                     <span className="text-xs text-emerald-700 font-semibold">✓ {t.payout_schedule.length} places configured</span>

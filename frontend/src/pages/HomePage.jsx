@@ -49,56 +49,32 @@ function parseRssXml(xml) {
   const items = Array.from(doc.querySelectorAll('item')).slice(0, 4);
   return items.map(item => {
     const title = item.querySelector('title')?.textContent || '';
-    const link = item.querySelector('link')?.textContent || item.querySelector('link')?.getAttribute('href') || '#';
+    const link = item.querySelector('link')?.textContent ||
+                 item.querySelector('link')?.nextSibling?.textContent || '#';
     const pubDate = item.querySelector('pubDate')?.textContent || '';
-    // Strip " - Source Name" suffix from Google News titles
-    const cleanTitle = title.replace(/\s*-\s*[^-]+$/, '');
-    const source = title.match(/- ([^-]+)$/)?.[1]?.trim() || 'News';
-    return { title: cleanTitle, link, pubDate, source };
+    const source = item.querySelector('source')?.textContent?.trim() ||
+                   item.querySelector('category')?.textContent?.trim() || 'ESPN';
+    return { title: title.trim(), link: link.trim(), pubDate, source };
   });
 }
 
 async function fetchMastersNews() {
-  const RSS = 'https://news.google.com/rss/search?q=Masters+golf+Augusta&hl=en-US&gl=US&ceid=US:en';
-
-  // Try multiple CORS proxies in sequence
-  const proxies = [
-    (u) => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
-    (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
-    (u) => `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(u)}&count=4`,
+  // ESPN Golf RSS — CORS-friendly, no proxy needed
+  const feeds = [
+    'https://www.espn.com/espn/rss/golf/news',
+    'https://feeds.bbci.co.uk/sport/golf/rss.xml',
   ];
 
-  for (const makeUrl of proxies) {
+  for (const feedUrl of feeds) {
     try {
-      const r = await fetch(makeUrl(RSS), { signal: AbortSignal.timeout(6000) });
+      const r = await fetch(feedUrl, { signal: AbortSignal.timeout(6000) });
       if (!r.ok) continue;
       const text = await r.text();
-
-      // allorigins wraps in JSON {contents: "..."}
-      if (text.startsWith('{')) {
-        const json = JSON.parse(text);
-        // rss2json format
-        if (json.items) {
-          return json.items.slice(0, 4).map(item => ({
-            title: item.title?.replace(/\s*-\s*[^-]+$/, '') || '',
-            link: item.link,
-            pubDate: item.pubDate,
-            source: item.author || item.title?.match(/- ([^-]+)$/)?.[1]?.trim() || 'News',
-          }));
-        }
-        // allorigins format
-        if (json.contents) {
-          const items = parseRssXml(json.contents);
-          if (items.length > 0) return items;
-        }
-      }
-
-      // Raw XML
       if (text.includes('<item>') || text.includes('<item ')) {
         const items = parseRssXml(text);
         if (items.length > 0) return items;
       }
-    } catch { /* try next proxy */ }
+    } catch { /* try next */ }
   }
   return [];
 }
@@ -174,7 +150,7 @@ export default function HomePage() {
               <div className="w-px bg-white/10 hidden md:block" />
               <div className="text-center">
                 <p className="text-[#CCFF00] font-numbers font-extrabold text-2xl">{t?.golfer_count ?? 0}</p>
-                <p className="text-white/50 text-xs mt-0.5">Golfers In the Field</p>
+                <p className="text-white/50 text-xs mt-0.5">In the Field</p>
               </div>
             </div>
           </div>

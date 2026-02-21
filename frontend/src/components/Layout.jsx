@@ -37,10 +37,9 @@ export default function Layout() {
               alt="Schoonover Invitational"
               className="h-8 w-8 md:h-10 md:w-10 object-contain"
             />
-            <div className="flex flex-col">
-              <span className="font-heading font-bold text-xs md:text-lg tracking-tight text-[#1B4332] leading-tight">SCHOONOVER</span>
-              <span className="font-heading font-bold text-xs md:text-lg tracking-tight text-[#1B4332] leading-tight">INVITATIONAL</span>
-              <span className="text-[6px] md:text-[8px] font-bold text-[#0F172A] tracking-wider leading-none">MASTERS OF THE FOX VALLEY</span>
+            <div className="flex flex-col leading-none">
+              <span className="text-[9px] md:text-[10px] font-bold text-[#0F172A] tracking-wider">MASTERS OF</span>
+              <span className="text-[9px] md:text-[10px] font-bold text-[#0F172A] tracking-wider">THE FOX VALLEY</span>
             </div>
           </div>
 

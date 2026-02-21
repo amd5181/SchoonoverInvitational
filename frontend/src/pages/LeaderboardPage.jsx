@@ -289,7 +289,6 @@ export default function LeaderboardPage() {
                             }
                           </div>
                           <div className="flex items-center gap-1 ml-2" data-testid={`team-points-${team.rank}`}>
-                            <DollarSign className="w-3.5 h-3.5 text-[#1B4332]" />
                             <span className="font-numbers font-bold text-lg text-[#1B4332]">
                               {hasPayouts ? team.total_earnings_fmt : '—'}
                             </span>

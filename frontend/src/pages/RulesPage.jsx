@@ -15,7 +15,7 @@ export default function RulesPage() {
           <h2 className="font-heading font-bold text-lg text-[#0F172A]">PROJECTED EARNINGS</h2>
         </div>
         <div className="space-y-3 text-sm text-slate-600">
-          <p>Each golfer on your team earns projected prize money based on their current finishing position in the tournament. The admin uploads the official Masters payout table (up to 70 places) before or during the event.</p>
+          <p>Each golfer on your team earns projected prize money based on their current finishing position in the tournament.</p>
           <div className="bg-slate-50 rounded-lg p-3 space-y-2">
             <p className="font-semibold text-slate-700">Example</p>
             <div className="flex justify-between border-b border-slate-100 pb-1">
@@ -25,7 +25,7 @@ export default function RulesPage() {
               <span>2nd place</span><span className="font-numbers font-bold text-[#1B4332]">$2,160,000</span>
             </div>
             <div className="flex justify-between border-b border-slate-100 pb-1">
-              <span>5th place</span><span className="font-numbers font-bold text-[#1B4332]">$800,000</span>
+              <span>3rd place</span><span className="font-numbers font-bold text-[#1B4332]">$800,000</span>
             </div>
             <div className="flex justify-between">
               <span>Missed Cut</span><span className="font-numbers font-bold text-slate-400">$10,000</span>
@@ -60,9 +60,7 @@ export default function RulesPage() {
           </div>
           <h2 className="font-heading font-bold text-lg text-[#0F172A]">LIVE & PROJECTED</h2>
         </div>
-        <p className="text-sm text-slate-600">During the tournament, earnings shown are <strong>projected</strong> based on current standings — they update as golfers move up and down the leaderboard. Final earnings are locked once the tournament is complete.</p>
-        <p className="text-sm text-slate-600 mt-2">The admin can update the payout schedule at any time without resetting any teams or scores — only the projected dollar amounts will change.</p>
-      </div>
+        <p className="text-sm text-slate-600">During the tournament, earnings shown are <strong>projected</strong> based on current standings — they update as golfers move up and down the leaderboard. Scores are estimates and may change once the final tournament earnings are announced, which will be locked once the tournament is complete.</p>
 
       {/* How to Win */}
       <div className="bg-gradient-to-br from-[#1B4332] to-[#081C15] rounded-xl p-5 text-white">

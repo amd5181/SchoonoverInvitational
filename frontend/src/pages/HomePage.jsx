@@ -209,7 +209,7 @@ export default function HomePage() {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Newspaper className="w-4 h-4 text-[#1B4332]" />
-              <h2 className="font-heading font-bold text-sm text-[#0F172A] uppercase tracking-wider">Latest Masters News</h2>
+              <h2 className="font-heading font-bold text-sm text-[#0F172A] uppercase tracking-wider">Latest Golf News</h2>
             </div>
             <a href="https://www.masters.com/en_US/news/index.html" target="_blank" rel="noopener noreferrer"
               className="text-xs text-slate-400 hover:text-[#1B4332] flex items-center gap-1 transition-colors">

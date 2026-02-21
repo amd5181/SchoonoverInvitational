@@ -38,7 +38,8 @@ export default function Layout() {
               className="h-8 w-8 md:h-10 md:w-10 object-contain"
             />
             <div className="flex flex-col">
-              <span className="font-heading font-bold text-sm md:text-lg tracking-tight text-[#1B4332] leading-tight">SCHOONOVER INVITATIONAL</span>
+              <span className="font-heading font-bold text-xs md:text-lg tracking-tight text-[#1B4332] leading-tight">SCHOONOVER</span>
+              <span className="font-heading font-bold text-xs md:text-lg tracking-tight text-[#1B4332] leading-tight">INVITATIONAL</span>
               <span className="text-[6px] md:text-[8px] font-bold text-[#0F172A] tracking-wider leading-none">MASTERS OF THE FOX VALLEY</span>
             </div>
           </div>

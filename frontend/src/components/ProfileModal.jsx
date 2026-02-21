@@ -42,47 +42,67 @@ export default function ProfileModal({ open, onClose }) {
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md" data-testid="profile-modal">
-        <DialogHeader>
-          <DialogTitle className="font-heading font-bold text-xl">Edit Profile</DialogTitle>
-          <DialogDescription>Update your name, email, or PIN. Changes to email and PIN must be unique.</DialogDescription>
+        <DialogHeader className="pb-1">
+          <DialogTitle className="font-heading font-bold text-lg">Edit Profile</DialogTitle>
+          <DialogDescription className="text-xs">Update your name, email, or PIN.</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 pt-2">
+        <div className="space-y-3 pt-1">
           <div>
             <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1 block">Full Name</label>
-            <Input data-testid="profile-name" value={name} onChange={e => setName(e.target.value)}
-              className="h-11 bg-slate-50 focus:border-[#1B4332]" />
+            <Input
+              data-testid="profile-name"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              autoFocus={false}
+              // Prevent keyboard from popping on mobile open
+              onFocus={e => { if (window.innerWidth < 768) e.target.blur(); setTimeout(() => e.target.focus(), 100); }}
+              className="h-10 bg-slate-50 focus:border-[#1B4332] text-sm"
+            />
           </div>
           <div>
             <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1 block">Email</label>
-            <Input data-testid="profile-email" type="email" value={email} onChange={e => setEmail(e.target.value)}
-              className="h-11 bg-slate-50 focus:border-[#1B4332]" />
+            <Input
+              data-testid="profile-email"
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              className="h-10 bg-slate-50 focus:border-[#1B4332] text-sm"
+            />
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">PIN</label>
+            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1 block">PIN</label>
             <div className="flex justify-center" data-testid="profile-pin">
               <InputOTP maxLength={4} value={pin} onChange={setPin}>
-                <InputOTPGroup className="gap-3">
+                <InputOTPGroup className="gap-2">
                   {[0,1,2,3].map(i => (
                     <InputOTPSlot key={i} index={i}
-                      className="w-12 h-12 text-xl font-bold font-heading border-2 border-slate-200 rounded-xl" />
+                      className="w-11 h-11 text-lg font-bold font-heading border-2 border-slate-200 rounded-xl" />
                   ))}
                 </InputOTPGroup>
               </InputOTP>
             </div>
           </div>
-          <Button data-testid="profile-save" className="w-full h-11 bg-[#1B4332] hover:bg-[#2D6A4F] text-white font-bold uppercase tracking-wider rounded-xl"
-            onClick={handleSave} disabled={saving}>
+
+          <Button
+            data-testid="profile-save"
+            className="w-full h-10 bg-[#1B4332] hover:bg-[#2D6A4F] text-white font-bold uppercase tracking-wider rounded-xl text-sm"
+            onClick={handleSave}
+            disabled={saving}
+          >
             {saving ? 'Saving...' : 'Save Changes'}
           </Button>
-          <div className="border-t border-slate-100 pt-3 mt-1">
-            <button
-              onClick={() => { logout(); navigate('/home'); onClose(); }}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold text-red-500 hover:bg-red-50 transition-colors"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-              Log Out
-            </button>
-          </div>
+
+          <button
+            onClick={() => { logout(); navigate('/home'); onClose(); }}
+            className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-bold text-red-500 hover:bg-red-50 transition-colors border border-red-100"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+              <polyline points="16 17 21 12 16 7"/>
+              <line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+            Log Out
+          </button>
         </div>
       </DialogContent>
     </Dialog>

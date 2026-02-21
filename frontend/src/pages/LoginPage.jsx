@@ -67,7 +67,7 @@ export default function LoginPage() {
         <div className="text-center mb-8">
           <div className="mb-4">
             <img 
-              src="https://images.vexels.com/media/users/3/134963/isolated/preview/7521d9cc865d48ec2dfb2a8a6286c13e-bridge-circle-icon-03.png" 
+              src="https://res.cloudinary.com/dsvpfi9te/image/upload/v1771684811/ChatGPT_Image_Feb_21_2026_09_39_17_AM_arjiwr.png" 
               alt="Schoonover Invitational" 
               className="w-40 h-40 mx-auto object-contain"
               data-testid="login-logo"

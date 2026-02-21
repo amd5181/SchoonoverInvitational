@@ -24,6 +24,9 @@ export default function AdminPage() {
   const [teamsDialog, setTeamsDialog] = useState({ open: false, tournament: null, teams: [] });
   const [editingTeam, setEditingTeam] = useState(null);
   const [editGolfers, setEditGolfers] = useState([]);
+  const [payoutDialog, setPayoutDialog] = useState({ open: false, slot: null });
+  const [payoutText, setPayoutText] = useState(``);
+  const [currentPayouts, setCurrentPayouts] = useState([]);
 
   const fetchTournaments = async () => {
     try {
@@ -91,6 +94,32 @@ export default function AdminPage() {
       toast.success('Default prices set!');
     } catch (e) { toast.error(e.response?.data?.detail || 'Failed'); }
     finally { setActionLoading(p => ({ ...p, [`prices_${slot}`]: false })); }
+  };
+
+  const openPayoutDialog = async (slot) => {
+    setPayoutText(``);
+    setCurrentPayouts([]);
+    setPayoutDialog({ open: true, slot });
+    try {
+      const r = await axios.get(`${API}/admin/payout-schedule/${slot}?user_id=${user.id}`);
+      const sched = r.data.schedule || [];
+      setCurrentPayouts(sched);
+      if (sched.length > 0) {
+        setPayoutText(sched.map(p => `${p.place}: ${p.amount}`).join("\n"));
+      }
+    } catch {}
+  };
+
+  const submitPayout = async () => {
+    if (!payoutText.trim()) { toast.error("Paste payout data first"); return; }
+    setActionLoading(p => ({ ...p, [`payout_${payoutDialog.slot}`]: true }));
+    try {
+      const r = await axios.post(`${API}/admin/payout-schedule/${payoutDialog.slot}?user_id=${user.id}`, { payout_text: payoutText });
+      toast.success(r.data.message || "Payout schedule saved!");
+      setCurrentPayouts(r.data.schedule || []);
+      await fetchTournaments();
+    } catch (e) { toast.error(e.response?.data?.detail || "Save failed"); }
+    finally { setActionLoading(p => ({ ...p, [`payout_${payoutDialog.slot}`]: false })); }
   };
 
   const resetTournament = async (slot) => {
@@ -302,6 +331,23 @@ export default function AdminPage() {
                   </div>
                 </div>
               )}
+              {/* Payout Schedule */}
+              <div>
+                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">
+                  <DollarSign className="w-3 h-3 inline mr-1" />Payout Schedule
+                </label>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Button onClick={() => openPayoutDialog(t.slot)}
+                    className="h-9 bg-emerald-700 text-white hover:bg-emerald-600"
+                    data-testid={`payout-btn-${t.slot}`}>
+                    <DollarSign className="w-4 h-4 mr-1" />
+                    {t.payout_schedule?.length > 0 ? `Edit Payouts (${t.payout_schedule.length} places)` : Set Payout Schedule}
+                  </Button>
+                  {t.payout_schedule?.length > 0 && (
+                    <span className="text-xs text-emerald-700 font-semibold">✓ {t.payout_schedule.length} places configured</span>
+                  )}
+                </div>
+              </div>
               {/* Entry Deadline */}
               <div>
                 <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">
@@ -370,6 +416,33 @@ export default function AdminPage() {
               className="w-full h-10 bg-[#1B4332] text-white hover:bg-[#2D6A4F] font-bold">
               {actionLoading[`odds_${oddsDialog.slot}`] ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <DollarSign className="w-4 h-4 mr-1" />}
               Import & Set Prices
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Payout Schedule Dialog */}
+      <Dialog open={payoutDialog.open} onOpenChange={(open) => { if (!open) setPayoutDialog({ open: false, slot: null }); }}>
+        <DialogContent className="sm:max-w-lg" data-testid="payout-dialog">
+          <DialogHeader>
+            <DialogTitle className="font-heading font-bold text-xl">Payout Schedule</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-slate-500">Enter the payout for each finishing position, one per line. Supports up to 70 places. Players who miss the cut automatically receive a flat $10,000.</p>
+            <p className="text-xs text-slate-400">Format: <code className="bg-slate-100 px-1 rounded">1: 3600000</code> or <code className="bg-slate-100 px-1 rounded">1 3600000</code> (no commas or $ signs needed, but they are accepted)</p>
+            <textarea data-testid="payout-textarea" value={payoutText} onChange={e => setPayoutText(e.target.value)}
+              placeholder={"1: 3600000\n2: 2160000\n3: 1350000\n4: 960000\n5: 800000\n..."}
+              className="w-full h-64 border border-slate-200 rounded-xl p-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 resize-none" />
+            {currentPayouts.length > 0 && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                <p className="text-xs font-bold text-emerald-700 mb-1">Currently saved: {currentPayouts.length} places</p>
+                <p className="text-xs text-emerald-600">1st: ${currentPayouts[0]?.amount?.toLocaleString()} → {currentPayouts[currentPayouts.length-1]?.place}th: ${currentPayouts[currentPayouts.length-1]?.amount?.toLocaleString()}</p>
+              </div>
+            )}
+            <Button data-testid="payout-submit" onClick={submitPayout} disabled={actionLoading[`payout_${payoutDialog.slot}`]}
+              className="w-full h-10 bg-emerald-700 text-white hover:bg-emerald-600 font-bold">
+              {actionLoading[`payout_${payoutDialog.slot}`] ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <DollarSign className="w-4 h-4 mr-1" />}
+              Save Payout Schedule
             </Button>
           </div>
         </DialogContent>

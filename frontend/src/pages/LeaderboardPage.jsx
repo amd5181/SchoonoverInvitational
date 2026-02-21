@@ -2,7 +2,14 @@ import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { API, useAuth } from '../App';
 import { Button } from '../components/ui/button';
-import { Medal, RefreshCw, Loader2, Clock, ChevronDown, ChevronUp, BarChart2, List, LayoutList, Lock } from 'lucide-react';
+import { Medal, RefreshCw, Loader2, Clock, ChevronDown, ChevronUp, BarChart2, List, LayoutList, Lock, DollarSign } from 'lucide-react';
+
+const fmtMoney = (n) => {
+  if (!n && n !== 0) return '-';
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
+  return `$${Number(n).toLocaleString()}`;
+};
 
 const abbrevName = (name) => {
   if (!name) return '';
@@ -39,7 +46,6 @@ export default function LeaderboardPage() {
   const [expanded, setExpanded] = useState(true);
 
   useEffect(() => {
-    // Always load Masters (slot 1)
     axios.get(`${API}/tournaments`)
       .then(r => {
         const masters = r.data.find(x => x.slot === 1);
@@ -93,6 +99,7 @@ export default function LeaderboardPage() {
   const standings = data?.team_standings || [];
   const allScores = data?.tournament_standings || [];
   const finalized = data?.is_finalized;
+  const hasPayouts = data?.has_payouts;
   const winners = finalized ? standings.slice(0, 3) : [];
 
   const isBeforeDeadline = currentTournament?.deadline
@@ -139,6 +146,9 @@ export default function LeaderboardPage() {
               <span className="flex-1 text-sm font-medium text-white truncate">{g.name}</span>
               {g.is_active && <span className="text-[9px] font-bold text-green-400 flex-shrink-0">LIVE</span>}
               <span className={`font-numbers font-bold text-sm flex-shrink-0 ${g.total_score?.toString().startsWith('-') ? 'text-[#CCFF00]' : 'text-white/70'}`}>{g.total_score}</span>
+              {hasPayouts && g.earnings > 0 && (
+                <span className="text-[10px] font-bold text-[#CCFF00]/80 flex-shrink-0">{fmtMoney(g.earnings)}</span>
+              )}
             </div>
           ))}
         </div>
@@ -161,9 +171,8 @@ export default function LeaderboardPage() {
         }
       </div>
       <span className="font-numbers font-bold text-sm text-[#1B4332]">
-        {typeof team.total_points === 'number' ? team.total_points.toFixed(2) : team.total_points}
+        {hasPayouts ? team.total_earnings_fmt : '—'}
       </span>
-      <span className="text-xs text-slate-400 ml-1">pts</span>
     </div>
   );
 
@@ -175,6 +184,13 @@ export default function LeaderboardPage() {
           <h1 className="font-heading font-extrabold text-3xl sm:text-4xl text-[#0F172A] tracking-tight">LEADERBOARD</h1>
         </div>
         <p className="text-slate-500 text-sm mb-4">Masters — Schoonover Invitational</p>
+
+        {!hasPayouts && standings.length > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-amber-700 text-sm flex items-center gap-2">
+            <DollarSign className="w-4 h-4 flex-shrink-0" />
+            Payout schedule not yet configured — earnings will show $0 until an admin sets the payouts.
+          </div>
+        )}
 
         {data?.last_updated && (
           <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-4">
@@ -209,7 +225,7 @@ export default function LeaderboardPage() {
                         <div key={w.team_id} className="flex items-center gap-2">
                           <Medal className={`w-5 h-5 ${i === 0 ? 'text-yellow-400' : i === 1 ? 'text-slate-300' : 'text-amber-500'}`} />
                           <span className="font-bold text-sm">{w.team_name}</span>
-                          <span className="text-xs text-white/60 font-numbers">{typeof w.total_points === 'number' ? w.total_points.toFixed(2) : w.total_points} pts</span>
+                          <span className="text-xs text-white/60 font-numbers">{w.total_earnings_fmt}</span>
                         </div>
                       ))}
                     </div>
@@ -246,10 +262,7 @@ export default function LeaderboardPage() {
                             : 'bg-[#1B4332] text-white border-[#1B4332] hover:bg-[#2D6A4F]'
                         }`}
                       >
-                        {expanded
-                          ? <><List className="w-3.5 h-3.5" />Collapse</>
-                          : <><LayoutList className="w-3.5 h-3.5" />Expand</>
-                        }
+                        {expanded ? <><List className="w-3.5 h-3.5" />Collapse</> : <><LayoutList className="w-3.5 h-3.5" />Expand</>}
                       </button>
                     </div>
 
@@ -275,10 +288,12 @@ export default function LeaderboardPage() {
                               : <span className="flex-shrink-0 text-[9px] font-bold bg-red-100 text-red-500 rounded-full px-1.5 py-0.5 border border-red-200 animate-pulse">UNPAID</span>
                             }
                           </div>
-                          <span className="font-numbers font-bold text-lg text-[#1B4332] ml-2" data-testid={`team-points-${team.rank}`}>
-                            {typeof team.total_points === 'number' ? team.total_points.toFixed(2) : team.total_points}
-                          </span>
-                          <span className="text-xs text-slate-400 ml-1">pts</span>
+                          <div className="flex items-center gap-1 ml-2" data-testid={`team-points-${team.rank}`}>
+                            <DollarSign className="w-3.5 h-3.5 text-[#1B4332]" />
+                            <span className="font-numbers font-bold text-lg text-[#1B4332]">
+                              {hasPayouts ? team.total_earnings_fmt : '—'}
+                            </span>
+                          </div>
                         </div>
 
                         <div className="flex items-center px-4 py-1 bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
@@ -292,7 +307,7 @@ export default function LeaderboardPage() {
                           </div>
                           <span className="w-8 text-right">Tot</span>
                           <span className="w-9 text-center">Thru</span>
-                          <span className="w-11 text-right">Pts</span>
+                          <span className="w-16 text-right">Earnings</span>
                         </div>
 
                         <div className="divide-y divide-slate-50">
@@ -314,8 +329,8 @@ export default function LeaderboardPage() {
                               <span className="w-9 text-center flex-shrink-0 flex items-center justify-center">
                                 {renderThruCell(g)}
                               </span>
-                              <span className="w-11 text-right font-numbers font-bold text-[#1B4332] flex-shrink-0">
-                                {typeof g.total_points === 'number' ? g.total_points.toFixed(2) : g.total_points}
+                              <span className={`w-16 text-right font-numbers font-bold flex-shrink-0 ${g.is_cut ? 'text-slate-400' : 'text-[#1B4332]'}`}>
+                                {hasPayouts ? (g.earnings_fmt || '$0') : '—'}
                               </span>
                             </div>
                           ))}

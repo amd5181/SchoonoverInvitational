@@ -43,16 +43,64 @@ function timeAgo(dateStr) {
   } catch { return ''; }
 }
 
+function parseRssXml(xml) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(xml, 'text/xml');
+  const items = Array.from(doc.querySelectorAll('item')).slice(0, 4);
+  return items.map(item => {
+    const title = item.querySelector('title')?.textContent || '';
+    const link = item.querySelector('link')?.textContent || item.querySelector('link')?.getAttribute('href') || '#';
+    const pubDate = item.querySelector('pubDate')?.textContent || '';
+    // Strip " - Source Name" suffix from Google News titles
+    const cleanTitle = title.replace(/\s*-\s*[^-]+$/, '');
+    const source = title.match(/- ([^-]+)$/)?.[1]?.trim() || 'News';
+    return { title: cleanTitle, link, pubDate, source };
+  });
+}
+
 async function fetchMastersNews() {
-  const rssUrl = encodeURIComponent('https://news.google.com/rss/search?q=Masters+golf+Augusta&hl=en-US&gl=US&ceid=US:en');
-  const r = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${rssUrl}&count=4`);
-  const data = await r.json();
-  return (data.items || []).slice(0, 4).map(item => ({
-    title: item.title?.replace(/\s*-\s*[^-]+$/, '') || '',
-    link: item.link,
-    pubDate: item.pubDate,
-    source: item.author || item.title?.match(/- ([^-]+)$/)?.[1] || 'News',
-  }));
+  const RSS = 'https://news.google.com/rss/search?q=Masters+golf+Augusta&hl=en-US&gl=US&ceid=US:en';
+
+  // Try multiple CORS proxies in sequence
+  const proxies = [
+    (u) => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
+    (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+    (u) => `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(u)}&count=4`,
+  ];
+
+  for (const makeUrl of proxies) {
+    try {
+      const r = await fetch(makeUrl(RSS), { signal: AbortSignal.timeout(6000) });
+      if (!r.ok) continue;
+      const text = await r.text();
+
+      // allorigins wraps in JSON {contents: "..."}
+      if (text.startsWith('{')) {
+        const json = JSON.parse(text);
+        // rss2json format
+        if (json.items) {
+          return json.items.slice(0, 4).map(item => ({
+            title: item.title?.replace(/\s*-\s*[^-]+$/, '') || '',
+            link: item.link,
+            pubDate: item.pubDate,
+            source: item.author || item.title?.match(/- ([^-]+)$/)?.[1]?.trim() || 'News',
+          }));
+        }
+        // allorigins format
+        if (json.contents) {
+          const items = parseRssXml(json.contents);
+          if (items.length > 0) return items;
+        }
+      }
+
+      // Raw XML
+      if (text.includes('<item>') || text.includes('<item ')) {
+        const items = parseRssXml(text);
+        if (items.length > 0) return items;
+      }
+    } catch { /* try next proxy */ }
+  }
+  return [];
 }
 
 export default function HomePage() {
@@ -126,7 +174,7 @@ export default function HomePage() {
               <div className="w-px bg-white/10 hidden md:block" />
               <div className="text-center">
                 <p className="text-[#CCFF00] font-numbers font-extrabold text-2xl">{t?.golfer_count ?? 0}</p>
-                <p className="text-white/50 text-xs mt-0.5">In the Field</p>
+                <p className="text-white/50 text-xs mt-0.5">Golfers In the Field</p>
               </div>
             </div>
           </div>

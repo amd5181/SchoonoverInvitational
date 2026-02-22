@@ -15,7 +15,7 @@ export default function RulesPage() {
           <h2 className="font-heading font-bold text-lg text-[#0F172A]">PROJECTED EARNINGS</h2>
         </div>
         <div className="space-y-3 text-sm text-slate-600">
-          <p>Each golfer on your team earns projected prize money based on their current finishing position in the tournament.</p>
+          <p>Each golfer on your team earns prize money based on their finishing position in the tournament.</p>
           <div className="bg-slate-50 rounded-lg p-3 space-y-2">
             <p className="font-semibold text-slate-700">Example</p>
             <div className="flex justify-between border-b border-slate-100 pb-1">
@@ -45,10 +45,10 @@ export default function RulesPage() {
           </div>
           <h2 className="font-heading font-bold text-lg text-[#0F172A]">TIES</h2>
         </div>
-        <p className="text-sm text-slate-600">When golfers are tied, we sum the payouts for all the positions they occupy and split the total evenly among the tied players.</p>
+        <p className="text-sm text-slate-600">When golfers are tied, the earnings are split evenly among all tied payout positions.</p>
         <div className="bg-slate-50 rounded-lg p-3 mt-3 text-sm">
-          <p className="font-semibold text-slate-700 mb-2">Example — 3-way tie for 2nd</p>
-          <p className="text-slate-600 text-xs">Payouts for 2nd + 3rd + 4th are added together and divided by 3. Each tied golfer receives the same equal share.</p>
+          <p className="font-semibold text-slate-700 mb-2">Example — 4-way tie for 2nd</p>
+          <p className="text-slate-600 text-xs">Payouts for 2nd + 3rd + 4th + 5th are added together and divided by 4. Each tied golfer receives the same equal share.</p>
         </div>
       </div>
 
@@ -60,7 +60,7 @@ export default function RulesPage() {
           </div>
           <h2 className="font-heading font-bold text-lg text-[#0F172A]">LIVE & PROJECTED</h2>
         </div>
-        <p className="text-sm text-slate-600">During the tournament, earnings shown are <strong>projected</strong> based on current standings — they update as golfers move up and down the leaderboard. Scores are estimates and may change once the final tournament earnings are announced, which will be locked once the tournament is complete.</p>
+        <p className="text-sm text-slate-600">During the tournament, earnings shown are <strong>projected</strong> based on current standings. Once the final tournament earnings are announced, earnings will be updated based on real-life payouts and standings become final.</p>
       </div>
 
       {/* How to Win */}
@@ -72,7 +72,7 @@ export default function RulesPage() {
         <ul className="space-y-2 text-sm text-slate-200">
           <li className="flex items-start gap-2"><span className="text-[#CCFF00] font-bold mt-0.5">1.</span>Build up to 2 teams of 5 golfers within a $1,000,000 salary cap</li>
           <li className="flex items-start gap-2"><span className="text-[#CCFF00] font-bold mt-0.5">2.</span>Each golfer earns projected prize money based on their current Masters finish</li>
-          <li className="flex items-start gap-2"><span className="text-[#CCFF00] font-bold mt-0.5">3.</span>Your team's total = the sum of all 5 golfers' projected earnings</li>
+          <li className="flex items-start gap-2"><span className="text-[#CCFF00] font-bold mt-0.5">3.</span>Your team's total = the sum of all 5 golfers' earnings</li>
           <li className="flex items-start gap-2"><span className="text-[#CCFF00] font-bold mt-0.5">4.</span>Highest total projected earnings wins</li>
         </ul>
       </div>

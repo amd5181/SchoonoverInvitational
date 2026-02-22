@@ -112,7 +112,7 @@ export default function LeaderboardPage() {
     return Array.from({ length: 4 }, (_, ri) => {
       const round = rounds[ri];
       const hasScore = round && round.score && round.score !== '-' && round.score !== '';
-      if (isCut && ri >= 2) return <span key={ri} className="w-7 text-center font-numbers text-[10px] text-red-400 font-bold">CUT</span>;
+      if (isCut && ri >= 2) return <span key={ri} className="w-6 text-center font-numbers text-[10px] text-slate-200">—</span>;
       if (hasScore) {
         const isCurrentRound = golfer.is_active && ri === rounds.length - 1;
         return <span key={ri} className={`w-6 text-center font-numbers text-[10px] ${isCurrentRound ? 'text-green-600 font-bold' : 'text-slate-400'}`}>{round.score}</span>;

@@ -5,7 +5,6 @@ import { useAuth } from '../App';
 import { useState } from 'react';
 import ProfileModal from './ProfileModal';
 import AuthModal from './AuthModal';
-import BackgroundMusic from './BackgroundMusic';
 
 const NAV_ITEMS = [
   { path: '/home',        icon: Home,     label: 'Home' },
@@ -103,7 +102,6 @@ export default function Layout() {
 
       {user && <ProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />}
       <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
-      <BackgroundMusic />
     </TooltipProvider>
   );
 }

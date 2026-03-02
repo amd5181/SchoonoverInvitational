@@ -16,8 +16,9 @@ function formatDeadline(dateStr) {
   if (!dateStr) return 'TBD';
   try {
     const d = new Date(dateStr);
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' +
-      d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' });
+    const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' });
+    return `${date} ${time} ET`;
   } catch { return 'TBD'; }
 }
 
@@ -149,7 +150,7 @@ export default function HomePage() {
             <Badge className={badge.cls + ' text-xs font-bold px-3 py-1 self-center'}>{badge.text}</Badge>
           </div>
 
-          <div className="flex items-center gap-2 text-white/60 text-sm mb-8">
+          <div className="flex items-center gap-2 text-white/90 text-sm mb-8">
             <MapPin className="w-3.5 h-3.5" />
             <span>Augusta National Golf Club · Augusta, Georgia</span>
           </div>
@@ -157,20 +158,13 @@ export default function HomePage() {
           {/* Stats row — left aligned */}
           <div className="flex gap-6 flex-wrap mb-8">
             <div>
-              <p className="text-[#CCFF00] font-numbers font-extrabold text-2xl">
-                {t?.start_date ? new Date(t.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Apr'}
-              </p>
-              <p className="text-white/50 text-xs mt-0.5">Start Date</p>
-            </div>
-            <div className="w-px bg-white/15 self-stretch" />
-            <div>
               <p className="text-[#CCFF00] font-numbers font-extrabold text-2xl">{t?.team_count ?? 0}</p>
-              <p className="text-white/50 text-xs mt-0.5">Teams Entered</p>
+              <p className="text-white/80 text-xs mt-0.5">Teams Entered</p>
             </div>
             <div className="w-px bg-white/15 self-stretch" />
             <div>
               <p className="text-[#CCFF00] font-numbers font-extrabold text-2xl">{t?.golfer_count ?? 0}</p>
-              <p className="text-white/50 text-xs mt-0.5">Golfers In the Field</p>
+              <p className="text-white/80 text-xs mt-0.5">Golfers In the Field</p>
             </div>
           </div>
 
@@ -180,7 +174,7 @@ export default function HomePage() {
                 <Calendar className="w-4 h-4 text-[#CCFF00]" />
               </div>
               <div>
-                <p className="text-white/40 text-[10px] uppercase tracking-wider font-bold">Tournament Dates</p>
+                <p className="text-[#CCFF00]/70 text-[10px] uppercase tracking-wider font-bold">Tournament Dates</p>
                 <p className="text-white text-sm font-medium">
                   {t?.start_date ? `${formatDate(t.start_date)} – ${formatDate(t.end_date)}` : 'TBD'}
                 </p>
@@ -191,7 +185,7 @@ export default function HomePage() {
                 <Clock className="w-4 h-4 text-amber-400" />
               </div>
               <div>
-                <p className="text-white/40 text-[10px] uppercase tracking-wider font-bold">Entry Deadline</p>
+                <p className="text-[#CCFF00]/70 text-[10px] uppercase tracking-wider font-bold">Entry Deadline</p>
                 <p className="text-white text-sm font-medium">{formatDeadline(t?.deadline)}</p>
               </div>
             </div>

@@ -12,6 +12,42 @@ import { Settings, Search, Download, DollarSign, Trash2, Loader2, Users, CheckCi
 
 const fmt = (n) => '$' + (n || 0).toLocaleString();
 
+// Convert a UTC ISO string to a "YYYY-MM-DDTHH:MM" string in Eastern time (for datetime-local inputs)
+function toEasternInputValue(isoStr) {
+  if (!isoStr) return '';
+  try {
+    const d = new Date(isoStr);
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    }).formatToParts(d);
+    const get = t => parts.find(p => p.type === t)?.value ?? '00';
+    const h = get('hour') === '24' ? '00' : get('hour');
+    return `${get('year')}-${get('month')}-${get('day')}T${h}:${get('minute')}`;
+  } catch { return isoStr.slice(0, 16); }
+}
+
+// Convert a "YYYY-MM-DDTHH:MM" Eastern time string back to a UTC ISO string
+function easternInputToISO(val) {
+  if (!val) return '';
+  try {
+    const [datePart, timePart] = val.split('T');
+    const [y, mo, d] = datePart.split('-').map(Number);
+    const [h, m] = timePart.split(':').map(Number);
+    // Guess UTC by treating input as UTC, then measure the Eastern offset at that moment
+    const utcGuess = new Date(Date.UTC(y, mo - 1, d, h, m));
+    const fmtParts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    }).formatToParts(utcGuess);
+    const get = t => Number(fmtParts.find(p => p.type === t)?.value);
+    const easternHour = get('hour') === 24 ? 0 : get('hour');
+    const offsetMs = ((h - easternHour) * 60 + (m - get('minute'))) * 60000;
+    return new Date(utcGuess.getTime() + offsetMs).toISOString();
+  } catch { return new Date(val).toISOString(); }
+}
+
 export default function AdminPage() {
   const { user } = useAuth();
   const [tournaments, setTournaments] = useState([]);
@@ -353,14 +389,14 @@ export default function AdminPage() {
                 <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">
                   <Calendar className="w-3 h-3 inline mr-1" />Entry Deadline
                 </label>
-                <Input 
-                  type="datetime-local" 
+                <Input
+                  type="datetime-local"
                   data-testid={`deadline-${t.slot}`}
-                  defaultValue={t.deadline ? t.deadline.slice(0, 16) : ''}
+                  defaultValue={toEasternInputValue(t.deadline)}
                   onBlur={e => {
                     const val = e.target.value;
                     if (val) {
-                      const isoDate = new Date(val).toISOString();
+                      const isoDate = easternInputToISO(val);
                       if (isoDate !== t.deadline) {
                         updateTournament(t.slot, { deadline: isoDate });
                         toast.success('Deadline updated');
@@ -371,7 +407,7 @@ export default function AdminPage() {
                 />
                 {t.deadline && (
                   <p className="text-xs text-slate-400 mt-1">
-                    Current: {new Date(t.deadline).toLocaleString()}
+                    Current: {new Date(t.deadline).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })} ET
                   </p>
                 )}
               </div>

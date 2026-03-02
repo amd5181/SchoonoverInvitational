@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { API } from '../App';
-import { Calendar, Users, Clock, ChevronRight, Loader2, ExternalLink, Newspaper, MapPin, Trophy } from 'lucide-react';
+import { Calendar, Users, Clock, ChevronRight, Loader2, ExternalLink, Newspaper, MapPin } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import PaymentBanner from '../components/PaymentBanner';
 
@@ -85,6 +85,7 @@ export default function HomePage() {
   const [news, setNews] = useState([]);
   const [newsLoading, setNewsLoading] = useState(true);
   const navigate = useNavigate();
+  const videoRef = useRef(null);
 
   useEffect(() => {
     axios.get(`${API}/tournaments`)
@@ -117,45 +118,63 @@ export default function HomePage() {
     <div className="p-4 md:p-8 max-w-5xl mx-auto animate-fade-in-up">
 
       {/* Hero */}
-      <div className="relative bg-gradient-to-br from-[#1B4332] via-[#2D6A4F] to-[#081C15] rounded-2xl overflow-hidden mb-6 shadow-xl">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
-        <div className="absolute bottom-0 left-0 w-40 h-40 bg-[#CCFF00]/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+      <div className="relative rounded-2xl overflow-hidden mb-6 shadow-xl">
+        {/* Video background — preloads immediately, poster shows first frame with no loading bar */}
+        <video
+          ref={videoRef}
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="auto"
+          poster="https://res.cloudinary.com/dsvpfi9te/video/upload/so_0/v1772420808/MicrosoftTeams-video_lcv2jg.jpg"
+          className="absolute inset-0 w-full h-full object-cover"
+          onLoadedData={e => e.target.play().catch(() => {})}
+        >
+          <source src="https://res.cloudinary.com/dsvpfi9te/video/upload/v1772420808/MicrosoftTeams-video_lcv2jg.mp4" type="video/mp4" />
+        </video>
 
-        <div className="relative px-6 py-8 md:px-10 md:py-10">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+        {/* Left-heavy gradient overlay for text legibility, fades to more transparent on the right */}
+        <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/60 to-black/25" />
+        {/* Bottom fade for the info row */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+
+        <div className="relative px-6 py-10 md:px-10 md:py-14 max-w-xl">
+          <p className="text-[#CCFF00] font-bold text-xs uppercase tracking-widest mb-2">Schoonover Invitational</p>
+
+          <div className="flex flex-wrap items-center gap-3 mb-2">
+            <h1 className="font-heading font-extrabold text-4xl sm:text-5xl text-white tracking-tight" data-testid="home-title">
+              THE MASTERS
+            </h1>
+            <Badge className={badge.cls + ' text-xs font-bold px-3 py-1 self-center'}>{badge.text}</Badge>
+          </div>
+
+          <div className="flex items-center gap-2 text-white/60 text-sm mb-8">
+            <MapPin className="w-3.5 h-3.5" />
+            <span>Augusta National Golf Club · Augusta, Georgia</span>
+          </div>
+
+          {/* Stats row — left aligned */}
+          <div className="flex gap-6 flex-wrap mb-8">
             <div>
-              <p className="text-[#CCFF00] font-bold text-xs uppercase tracking-widest mb-1">Schoonover Invitational</p>
-              <h1 className="font-heading font-extrabold text-4xl sm:text-5xl text-white tracking-tight mb-2" data-testid="home-title">
-                THE MASTERS
-              </h1>
-              <div className="flex items-center gap-2 text-white/60 text-sm mb-4">
-                <MapPin className="w-3.5 h-3.5" />
-                <span>Augusta National Golf Club · Augusta, Georgia</span>
-              </div>
-              <Badge className={badge.cls + ' text-xs font-bold px-3 py-1'}>{badge.text}</Badge>
+              <p className="text-[#CCFF00] font-numbers font-extrabold text-2xl">
+                {t?.start_date ? new Date(t.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Apr'}
+              </p>
+              <p className="text-white/50 text-xs mt-0.5">Start Date</p>
             </div>
-
-            <div className="flex gap-4 md:gap-6 flex-wrap">
-              <div className="text-center">
-                <p className="text-[#CCFF00] font-numbers font-extrabold text-2xl">
-                  {t?.start_date ? new Date(t.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Apr'}
-                </p>
-                <p className="text-white/50 text-xs mt-0.5">Start Date</p>
-              </div>
-              <div className="w-px bg-white/10 hidden md:block" />
-              <div className="text-center">
-                <p className="text-[#CCFF00] font-numbers font-extrabold text-2xl">{t?.team_count ?? 0}</p>
-                <p className="text-white/50 text-xs mt-0.5">Teams Entered</p>
-              </div>
-              <div className="w-px bg-white/10 hidden md:block" />
-              <div className="text-center">
-                <p className="text-[#CCFF00] font-numbers font-extrabold text-2xl">{t?.golfer_count ?? 0}</p>
-                <p className="text-white/50 text-xs mt-0.5">Golfers In the Field</p>
-              </div>
+            <div className="w-px bg-white/15 self-stretch" />
+            <div>
+              <p className="text-[#CCFF00] font-numbers font-extrabold text-2xl">{t?.team_count ?? 0}</p>
+              <p className="text-white/50 text-xs mt-0.5">Teams Entered</p>
+            </div>
+            <div className="w-px bg-white/15 self-stretch" />
+            <div>
+              <p className="text-[#CCFF00] font-numbers font-extrabold text-2xl">{t?.golfer_count ?? 0}</p>
+              <p className="text-white/50 text-xs mt-0.5">Golfers In the Field</p>
             </div>
           </div>
 
-          <div className="mt-6 pt-6 border-t border-white/10 grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="pt-6 border-t border-white/15 grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
                 <Calendar className="w-4 h-4 text-[#CCFF00]" />
@@ -174,15 +193,6 @@ export default function HomePage() {
               <div>
                 <p className="text-white/40 text-[10px] uppercase tracking-wider font-bold">Entry Deadline</p>
                 <p className="text-white text-sm font-medium">{formatDeadline(t?.deadline)}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
-                <Trophy className="w-4 h-4 text-[#CCFF00]" />
-              </div>
-              <div>
-                <p className="text-white/40 text-[10px] uppercase tracking-wider font-bold">Prize Purse</p>
-                <p className="text-white text-sm font-medium">$21,000,000</p>
               </div>
             </div>
           </div>

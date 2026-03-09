@@ -18,7 +18,7 @@ function formatDeadline(dateStr) {
     const d = new Date(dateStr);
     const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' });
     const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' });
-    return `${date} ${time} ET`;
+    return `${date} – ${time} ET`;
   } catch { return 'TBD'; }
 }
 
@@ -141,6 +141,14 @@ export default function HomePage() {
         <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
 
         <div className="relative px-6 py-10 md:px-10 md:py-14 max-w-xl">
+          <div className="flex items-center gap-3 mb-5 whitespace-nowrap">
+            <img
+              src="https://res.cloudinary.com/dsvpfi9te/image/upload/v1771684811/ChatGPT_Image_Feb_21_2026_09_39_17_AM_arjiwr.png"
+              alt="Schoonover Invitational"
+              className="h-12 w-12 object-contain flex-shrink-0"
+            />
+            <span className="text-white font-bold text-base tracking-wider">MASTERS OF THE FOX VALLEY</span>
+          </div>
           <p className="text-[#CCFF00] font-bold text-xs uppercase tracking-widest mb-2">Schoonover Invitational</p>
 
           <div className="flex flex-wrap items-center gap-3 mb-2">

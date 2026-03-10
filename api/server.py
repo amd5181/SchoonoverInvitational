@@ -114,13 +114,13 @@ def build_payout_map(payout_schedule: List[Dict]) -> Dict[int, int]:
     return {p["place"]: p["amount"] for p in payout_schedule}
 
 def calc_earnings_for_position(pos_str: str, payout_map: Dict[int, int],
-                                scores_list: list, is_cut: bool) -> float:
+                                scores_list: list, is_cut: bool, is_wd: bool = False) -> float:
     """
     Calculate projected earnings for a golfer.
-    - CUT players: flat CUT_EARNINGS
+    - CUT/WD players: flat CUT_EARNINGS
     - Tied players: sum payouts for all tied positions, split evenly
     """
-    if is_cut:
+    if is_cut or is_wd:
         return float(CUT_EARNINGS)
     if not pos_str or pos_str in ('-', '', 'WD', 'DQ', 'MDF'):
         return 0.0
@@ -150,11 +150,11 @@ def calc_earnings_for_position(pos_str: str, payout_map: Dict[int, int],
 
 def assign_positions(scores_list: list) -> list:
     """
-    Given raw ESPN scores, assign integer position_num to each non-cut golfer
+    Given raw ESPN scores, assign integer position_num to each non-cut/non-wd golfer
     accounting for ties (same score_int = same position).
     Returns annotated scores_list.
     """
-    active = [s for s in scores_list if not s.get('is_cut') and s.get('score_int') is not None]
+    active = [s for s in scores_list if not s.get('is_cut') and not s.get('is_wd') and s.get('score_int') is not None]
     active.sort(key=lambda x: x['score_int'])
 
     pos = 1
@@ -183,6 +183,9 @@ def assign_positions(scores_list: list) -> list:
         if s.get('is_cut'):
             s['position_num'] = None
             s['position_label'] = 'CUT'
+        elif s.get('is_wd'):
+            s['position_num'] = None
+            s['position_label'] = 'WD'
         else:
             key = s.get('espn_id', '') or s.get('name', '').lower()
             match = lookup.get(key) or lookup.get(s.get('name', '').lower())
@@ -316,7 +319,9 @@ async def espn_get_field(event_id, event_date=None):
                     status_short = str(type_obj.get('shortDetail', ''))
             linescore_text = ' '.join(str(ls.get('displayValue', '')) for ls in c.get('linescores', []))
             combined_text = f"{score_str} {status_name} {status_desc} {status_short} {linescore_text}".upper()
-            is_cut = 'CUT' in combined_text
+            _wd_keywords = ('WD', 'WITHDRAWN', 'WITHDRAW', 'WITHDREW', 'WITHDRA')
+            is_wd = any(kw in combined_text for kw in _wd_keywords)
+            is_cut = 'CUT' in combined_text and not is_wd
             golfers.append({
                 'espn_id': str(ath.get('id', c.get('id', ''))),
                 'name': ath.get('fullName', ath.get('displayName', '')),
@@ -326,6 +331,7 @@ async def espn_get_field(event_id, event_date=None):
                 'score_int': parse_score(score_str),
                 'rounds': rounds,
                 'is_cut': is_cut,
+                'is_wd': is_wd,
                 'status': c.get('status', {}).get('type', {}).get('name', '') if isinstance(c.get('status'), dict) else '',
                 'thru': str(c.get('status', {}).get('thru', '')) if isinstance(c.get('status'), dict) else ''
             })
@@ -337,7 +343,7 @@ async def espn_get_field(event_id, event_date=None):
             max_rounds = max(round_counts.keys()) if round_counts else 0
             if max_rounds >= 3:
                 for g in golfers:
-                    if len(g['rounds']) == 2:
+                    if len(g['rounds']) == 2 and not g.get('is_wd'):
                         g['is_cut'] = True
         return golfers, data
     except Exception as e:
@@ -780,6 +786,7 @@ async def get_leaderboard(tournament_id: str):
                             "total_score": display_score, "score_int": g.get("score_int"),
                             "rounds": display_rounds,
                             "thru": g.get("thru", ""), "is_cut": g.get("is_cut", False),
+                            "is_wd": g.get("is_wd", False),
                             "is_active": "PROGRESS" in str(g.get("status", "")).upper(),
                             "sort_order": g["order"]
                         })
@@ -803,8 +810,7 @@ async def get_leaderboard(tournament_id: str):
     scores = cache.get("scores", []) if cache else []
     last_updated = cache.get("last_updated", "") if cache else ""
 
-    # Normalize CUT players so initial page load matches manual refresh behavior:
-    # show actual score instead of "CUT" in total_score, trim rounds to 2.
+    # Normalize CUT/WD players so initial page load matches manual refresh behavior.
     for s in scores:
         if s.get("is_cut"):
             if s.get("total_score") == "CUT" and s.get("score_int") is not None:
@@ -817,6 +823,15 @@ async def get_leaderboard(tournament_id: str):
                     s["total_score"] = str(val)
             if len(s.get("rounds", [])) > 2:
                 s["rounds"] = s["rounds"][:2]
+        elif s.get("is_wd"):
+            if s.get("total_score") in ("WD", "") and s.get("score_int") is not None:
+                val = s["score_int"]
+                if val == 0:
+                    s["total_score"] = "E"
+                elif val > 0:
+                    s["total_score"] = f"+{val}"
+                else:
+                    s["total_score"] = str(val)
 
     # Make sure positions are assigned (in case cache pre-dates this feature)
     if scores:
@@ -841,7 +856,8 @@ async def get_leaderboard(tournament_id: str):
                     sd.get("position_label", "-"),
                     payout_map,
                     scores,
-                    sd.get("is_cut", False)
+                    sd.get("is_cut", False),
+                    sd.get("is_wd", False)
                 )
                 total_earnings += earnings
                 gd.append({
@@ -852,6 +868,7 @@ async def get_leaderboard(tournament_id: str):
                     "thru": sd.get("thru", ""),
                     "is_active": sd.get("is_active", False),
                     "is_cut": sd.get("is_cut", False),
+                    "is_wd": sd.get("is_wd", False),
                     "earnings": earnings,
                     "earnings_fmt": fmt_earnings(earnings),
                     "sort_order": sd.get("sort_order", 999)
@@ -864,9 +881,9 @@ async def get_leaderboard(tournament_id: str):
                     "earnings": 0.0, "earnings_fmt": "$0",
                     "sort_order": 9999
                 })
-        # Sort: active/non-cut by earnings desc, then cut players
-        gd.sort(key=lambda x: (1 if x.get("is_cut") else 0,
-                                -x["earnings"] if not x.get("is_cut") else x.get("sort_order", 9999)))
+        # Sort: active/non-cut/non-wd by earnings desc, then cut/wd players
+        gd.sort(key=lambda x: (1 if x.get("is_cut") or x.get("is_wd") else 0,
+                                -x["earnings"] if not (x.get("is_cut") or x.get("is_wd")) else x.get("sort_order", 9999)))
         team_standings.append({
             "team_id": team["id"],
             "user_name": team["user_name"],
@@ -883,7 +900,7 @@ async def get_leaderboard(tournament_id: str):
         ts["rank"] = i + 1
 
     # Top 25 for tournament standings panel
-    top25_scores = [s for s in scores if not s.get("is_cut", False) and s.get("score_int") is not None]
+    top25_scores = [s for s in scores if not s.get("is_cut", False) and not s.get("is_wd", False) and s.get("score_int") is not None]
     top25_scores.sort(key=lambda x: x.get("score_int", 999))
     top25 = []
     for s in top25_scores[:25]:
@@ -925,6 +942,7 @@ async def manual_refresh(tournament_id: str, user_id: str = Query(...)):
             "total_score": g["score"], "score_int": g.get("score_int"),
             "rounds": g["rounds"],
             "thru": g.get("thru", ""), "is_cut": g.get("is_cut", False),
+            "is_wd": g.get("is_wd", False),
             "is_active": "PROGRESS" in str(g.get("status", "")).upper(),
             "sort_order": g["order"]
         })

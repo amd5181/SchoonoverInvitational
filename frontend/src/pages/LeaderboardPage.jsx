@@ -19,6 +19,7 @@ const abbrevName = (name) => {
 };
 
 const renderThruCell = (golfer) => {
+  if (golfer.is_wd) return <span className="text-orange-400 font-bold text-[10px]">WD</span>;
   if (golfer.is_cut) return <span className="text-red-400 font-bold text-[10px]">CUT</span>;
   const thru = golfer.thru?.toString() || '';
   if (golfer.is_active) {
@@ -109,10 +110,12 @@ export default function LeaderboardPage() {
   const renderRounds = (golfer) => {
     const rounds = golfer.rounds || [];
     const isCut = golfer.is_cut;
+    const isWD = golfer.is_wd;
     return Array.from({ length: 4 }, (_, ri) => {
       const round = rounds[ri];
       const hasScore = round && round.score && round.score !== '-' && round.score !== '';
       if (isCut && ri >= 2) return <span key={ri} className="w-6 text-center font-numbers text-[10px] text-red-400 font-bold">CUT</span>;
+      if (isWD && !hasScore) return <span key={ri} className="w-6 text-center font-numbers text-[10px] text-orange-400 font-bold">WD</span>;
       if (hasScore) {
         const isCurrentRound = golfer.is_active && ri === rounds.length - 1;
         return <span key={ri} className={`w-6 text-center font-numbers text-[10px] ${isCurrentRound ? 'text-green-600 font-bold' : 'text-slate-400'}`}>{round.score}</span>;
@@ -166,8 +169,8 @@ export default function LeaderboardPage() {
       <div className="flex-1 flex items-center gap-1.5 min-w-0 mr-2">
         <span className="text-sm font-medium text-[#0F172A] truncate">{team.team_name}</span>
         {team.paid
-          ? <span className="flex-shrink-0 text-[9px] font-bold bg-emerald-100 text-emerald-700 rounded-full px-1.5 py-0.5 border border-emerald-200">PAID</span>
-          : <span className="flex-shrink-0 text-[9px] font-bold bg-red-100 text-red-500 rounded-full px-1.5 py-0.5 border border-red-200 animate-pulse">UNPAID</span>
+          ? <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" title="Paid" />
+          : <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 animate-pulse" title="Unpaid" />
         }
       </div>
       <span className="font-numbers font-bold text-sm text-[#1B4332]">
@@ -183,7 +186,6 @@ export default function LeaderboardPage() {
         <div className="flex items-center justify-between mb-1">
           <h1 className="font-heading font-extrabold text-3xl sm:text-4xl text-[#0F172A] tracking-tight">LEADERBOARD</h1>
         </div>
-        <p className="text-slate-500 text-sm mb-4">Masters — Schoonover Invitational</p>
 
         {!hasPayouts && standings.length > 0 && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-amber-700 text-sm flex items-center gap-2">
@@ -284,8 +286,8 @@ export default function LeaderboardPage() {
                           <div className="flex-1 min-w-0 flex items-center gap-2">
                             <span className="font-bold text-sm text-[#0F172A] truncate">{team.team_name}</span>
                             {team.paid
-                              ? <span className="flex-shrink-0 text-[9px] font-bold bg-emerald-100 text-emerald-700 rounded-full px-1.5 py-0.5 border border-emerald-200">PAID</span>
-                              : <span className="flex-shrink-0 text-[9px] font-bold bg-red-100 text-red-500 rounded-full px-1.5 py-0.5 border border-red-200 animate-pulse">UNPAID</span>
+                              ? <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" title="Paid" />
+                              : <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 animate-pulse" title="Unpaid" />
                             }
                           </div>
                           <div className="flex items-center gap-1 ml-2" data-testid={`team-points-${team.rank}`}>
@@ -312,8 +314,8 @@ export default function LeaderboardPage() {
                         <div className="divide-y divide-slate-50">
                           {team.golfers.map((g, i) => (
                             <div key={i} className="flex items-center px-4 py-1.5 text-xs">
-                              <span className={`hidden sm:block w-10 font-numbers font-bold flex-shrink-0 ${g.is_cut ? 'text-red-400' : g.is_active ? 'text-green-500 pulse-active' : 'text-slate-500'}`}>
-                                {g.is_cut ? 'CUT' : g.position || '-'}{g.is_active && !g.is_cut && '*'}
+                              <span className={`hidden sm:block w-10 font-numbers font-bold flex-shrink-0 ${g.is_wd ? 'text-orange-400' : g.is_cut ? 'text-red-400' : g.is_active ? 'text-green-500 pulse-active' : 'text-slate-500'}`}>
+                                {g.is_wd ? 'WD' : g.is_cut ? 'CUT' : g.position || '-'}{g.is_active && !g.is_cut && !g.is_wd && '*'}
                               </span>
                               <span className="flex-1 font-medium text-[#0F172A] truncate min-w-0 mr-1">
                                 <span className="sm:hidden">{abbrevName(g.name)}</span>
@@ -328,7 +330,7 @@ export default function LeaderboardPage() {
                               <span className="w-9 text-center flex-shrink-0 flex items-center justify-center">
                                 {renderThruCell(g)}
                               </span>
-                              <span className={`w-16 text-right font-numbers font-bold flex-shrink-0 ${g.is_cut ? 'text-slate-400' : 'text-[#1B4332]'}`}>
+                              <span className={`w-16 text-right font-numbers font-bold flex-shrink-0 ${g.is_cut || g.is_wd ? 'text-slate-400' : 'text-[#1B4332]'}`}>
                                 {hasPayouts ? (g.earnings_fmt || '$0') : '—'}
                               </span>
                             </div>

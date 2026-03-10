@@ -299,13 +299,19 @@ async def espn_get_field(event_id, event_date=None):
         golfers = []
         for c in comp.get('competitors', []):
             ath = c.get('athlete', {})
+            all_ls = c.get('linescores', [])
+            total_linescores = len(all_ls)
             rounds = []
-            for ls in c.get('linescores', []):
-                rounds.append({
-                    'round': ls.get('period', 0),
-                    'score': ls.get('displayValue', ''),
-                    'strokes': ls.get('value', None)
-                })
+            for ls in all_ls:
+                val = ls.get('value', 0) or 0
+                display = (ls.get('displayValue', '') or '').strip()
+                # Skip ESPN placeholder rounds: value=0 and no real display score
+                if val > 0 or (display and display not in ('-', '', 'WD')):
+                    rounds.append({
+                        'round': ls.get('period', 0),
+                        'score': display,
+                        'strokes': val
+                    })
             score_str = str(c.get('score', ''))
             status_obj = c.get('status', {})
             status_name = ''
@@ -317,7 +323,7 @@ async def espn_get_field(event_id, event_date=None):
                     status_name = str(type_obj.get('name', ''))
                     status_desc = str(type_obj.get('description', ''))
                     status_short = str(type_obj.get('shortDetail', ''))
-            linescore_text = ' '.join(str(ls.get('displayValue', '')) for ls in c.get('linescores', []))
+            linescore_text = ' '.join(str(ls.get('displayValue', '')) for ls in all_ls)
             combined_text = f"{score_str} {status_name} {status_desc} {status_short} {linescore_text}".upper()
             _wd_keywords = ('WD', 'WITHDRAWN', 'WITHDRAW', 'WITHDREW', 'WITHDRA')
             is_wd = any(kw in combined_text for kw in _wd_keywords)
@@ -330,6 +336,7 @@ async def espn_get_field(event_id, event_date=None):
                 'score': score_str,
                 'score_int': parse_score(score_str),
                 'rounds': rounds,
+                'total_linescores': total_linescores,
                 'is_cut': is_cut,
                 'is_wd': is_wd,
                 'status': c.get('status', {}).get('type', {}).get('name', '') if isinstance(c.get('status'), dict) else '',
@@ -341,9 +348,31 @@ async def espn_get_field(event_id, event_date=None):
                 rc = len(g['rounds'])
                 round_counts[rc] = round_counts.get(rc, 0) + 1
             max_rounds = max(round_counts.keys()) if round_counts else 0
-            if max_rounds >= 3:
+
+            # Standard PGA Tour event is 4 rounds. Playoff rounds add extra linescores
+            # (total_ls > 4) but we cap at 4 so playoff rounds don't corrupt CUT/WD logic.
+            STANDARD_ROUNDS = 4
+            effective_max = min(max_rounds, STANDARD_ROUNDS)
+
+            # WD detection: ESPN allocates exactly 4 linescore slots for players who made
+            # the cut. A WD player has total_linescores==4 but fewer than 4 real rounds
+            # (rounds with value > 0). Playoff players get total_ls > 4, so they're safe.
+            for g in golfers:
+                real_rounds = len(g['rounds'])
+                total_ls = g.get('total_linescores', real_rounds)
+                is_active = 'PROGRESS' in str(g.get('status', '')).upper()
+                if (not g.get('is_cut') and not g.get('is_wd') and
+                        not is_active and
+                        real_rounds >= 1 and
+                        total_ls == STANDARD_ROUNDS and
+                        real_rounds < STANDARD_ROUNDS):
+                    g['is_wd'] = True
+
+            # CUT detection: players with fewer real rounds once round 3+ is in play.
+            # Use effective_max (capped at 4) so playoff rounds don't flag normal finishers.
+            if effective_max >= 3:
                 for g in golfers:
-                    if len(g['rounds']) == 2 and not g.get('is_wd'):
+                    if len(g['rounds']) < effective_max and not g.get('is_wd'):
                         g['is_cut'] = True
         return golfers, data
     except Exception as e:

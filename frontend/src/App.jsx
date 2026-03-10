@@ -37,7 +37,7 @@ function App() {
 
   return (
     <AuthContext.Provider value={{ user, login, logout, updateUser }}>
-      <Toaster theme="light" position="top-center" richColors />
+      <Toaster theme="light" position="bottom-center" richColors />
       <BrowserRouter>
         <Routes>
           {/* Login page still exists for direct nav, but redirects home if already logged in */}

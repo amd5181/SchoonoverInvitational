@@ -182,8 +182,7 @@ export default function MyTeamsPage() {
 
   return (
     <div className="p-4 md:p-8 max-w-4xl mx-auto animate-fade-in-up" data-testid="my-teams-page">
-      <h1 className="font-heading font-extrabold text-3xl sm:text-4xl text-[#0F172A] tracking-tight mb-1">MY TEAMS</h1>
-      <p className="text-slate-500 text-sm mb-4">Masters — Schoonover Invitational</p>
+      <h1 className="font-heading font-extrabold text-3xl sm:text-4xl text-[#0F172A] tracking-tight mb-4">MY TEAMS</h1>
 
       {/* Guest banner */}
       {!user && (
@@ -221,19 +220,19 @@ export default function MyTeamsPage() {
             {/* Team Panel */}
             <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden" data-testid={`team-${activeTeam}-panel`}>
               {/* Header with integrated team toggle */}
-              <div className="px-4 py-3 flex items-center justify-between bg-gradient-to-r from-[#1B4332] to-[#2D6A4F]">
-                <div className="flex items-center gap-2">
-                  <span className="text-white/70 text-xs font-semibold uppercase tracking-wider hidden sm:inline">
-                    {user ? user.name : 'Your'}
+              <div className="px-4 py-2.5 flex items-center justify-between bg-gradient-to-r from-[#1B4332] to-[#2D6A4F]">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-white/80 text-xs font-semibold whitespace-nowrap">
+                    {user ? `${user.name}'s` : 'Your'}
                   </span>
                   <div className="flex items-center bg-white/15 rounded-lg p-0.5">
                     <button onClick={() => setActiveTeam(1)} data-testid="toggle-team-1"
-                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${activeTeam === 1 ? 'bg-white text-[#1B4332] shadow-sm' : 'text-white/70 hover:text-white'}`}>
-                      {user ? `${user.name.split(' ')[0]}'s` : ''} Team 1
+                      className={`px-2.5 py-1 rounded-md text-xs font-bold whitespace-nowrap transition-all ${activeTeam === 1 ? 'bg-white text-[#1B4332] shadow-sm' : 'text-white/70 hover:text-white'}`}>
+                      Team 1
                     </button>
                     <button onClick={() => setActiveTeam(2)} data-testid="toggle-team-2"
-                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${activeTeam === 2 ? 'bg-white text-[#2D6A4F] shadow-sm' : 'text-white/70 hover:text-white'}`}>
-                      {user ? `${user.name.split(' ')[0]}'s` : ''} Team 2
+                      className={`px-2.5 py-1 rounded-md text-xs font-bold whitespace-nowrap transition-all ${activeTeam === 2 ? 'bg-white text-[#2D6A4F] shadow-sm' : 'text-white/70 hover:text-white'}`}>
+                      Team 2
                     </button>
                   </div>
                 </div>

@@ -5,55 +5,51 @@ import { API, useAuth } from '../App';
 import { Dialog, DialogContent } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { InputOTP, InputOTPGroup, InputOTPSlot } from './ui/input-otp';
-import { LogIn, UserPlus } from 'lucide-react';
+import { ArrowRight, ArrowLeft } from 'lucide-react';
 
-export default function AuthModal({ open, onClose, onSuccess, defaultMode = 'login' }) {
-  const [mode, setMode] = useState(defaultMode);
-  const [pin, setPin] = useState('');
-  const [name, setName] = useState('');
+export default function AuthModal({ open, onClose, onSuccess }) {
+  const [step, setStep] = useState(1); // 1 = email lookup, 2 = create account
   const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
 
-  const reset = () => { setPin(''); setName(''); setEmail(''); setLoading(false); };
-
+  const reset = () => { setStep(1); setEmail(''); setName(''); setLoading(false); };
   const handleClose = () => { reset(); onClose(); };
 
-  const handleLogin = async () => {
-    if (pin.length !== 4) { toast.error('Enter your 4-digit PIN'); return; }
+  const handleEmailSubmit = async () => {
+    const trimmed = email.trim();
+    if (!trimmed) { toast.error('Enter your email'); return; }
     setLoading(true);
     try {
-      const { data } = await axios.post(`${API}/auth/login`, { pin });
+      const { data } = await axios.post(`${API}/auth/login`, { email: trimmed });
       login(data);
       toast.success(`Welcome back, ${data.name}!`);
       reset();
       onSuccess?.(data);
       onClose();
     } catch (e) {
-      toast.error(e.response?.data?.detail || 'Invalid PIN');
+      if (e.response?.status === 404) {
+        setStep(2);
+      } else {
+        toast.error(e.response?.data?.detail || 'Something went wrong');
+      }
     } finally { setLoading(false); }
   };
 
   const handleRegister = async () => {
-    if (!name.trim()) { toast.error('Enter your name'); return; }
-    if (!email.trim()) { toast.error('Enter your email'); return; }
-    if (pin.length !== 4) { toast.error('Choose a 4-digit PIN'); return; }
+    if (!name.trim()) { toast.error('Enter your full name'); return; }
     setLoading(true);
     try {
-      const { data } = await axios.post(`${API}/auth/register`, { name: name.trim(), email: email.trim(), pin });
+      const { data } = await axios.post(`${API}/auth/register`, { name: name.trim(), email: email.trim() });
       login(data);
-      toast.success(`Welcome to Schoonover Invitational, ${data.name}!`);
+      toast.success(`Welcome, ${data.name}!`);
       reset();
       onSuccess?.(data);
       onClose();
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Registration failed');
     } finally { setLoading(false); }
-  };
-
-  const handlePinComplete = (val) => {
-    if (val.length === 4 && mode === 'login') setTimeout(handleLogin, 100);
   };
 
   return (
@@ -70,55 +66,57 @@ export default function AuthModal({ open, onClose, onSuccess, defaultMode = 'log
           <p className="text-[#CCFF00] text-xs font-bold tracking-wider mt-0.5">MASTERS OF THE FOX VALLEY</p>
         </div>
 
-        {/* Form */}
         <div className="p-6 space-y-4">
-          {/* Tab switcher */}
-          <div className="flex bg-slate-100 rounded-lg p-1 gap-1">
-            <button onClick={() => { setMode('login'); setPin(''); }}
-              className={`flex-1 py-2 rounded-md text-sm font-bold transition-all ${mode === 'login' ? 'bg-[#1B4332] text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-              <LogIn className="w-4 h-4 inline mr-1.5 -mt-0.5" />Sign In
-            </button>
-            <button onClick={() => { setMode('register'); setPin(''); }}
-              className={`flex-1 py-2 rounded-md text-sm font-bold transition-all ${mode === 'register' ? 'bg-[#1B4332] text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-              <UserPlus className="w-4 h-4 inline mr-1.5 -mt-0.5" />Create Account
-            </button>
-          </div>
-
-          {mode === 'register' && (
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1 block">Full Name</label>
-                <Input value={name} onChange={e => setName(e.target.value)}
-                  placeholder="John Smith" className="h-11 bg-slate-50 border-slate-200" />
-              </div>
+          {step === 1 && (
+            <>
+              <p className="text-sm text-slate-500 text-center">Enter your email to sign in. If you don't have an account, we'll create one.</p>
               <div>
                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1 block">Email</label>
-                <Input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                  placeholder="john@example.com" className="h-11 bg-slate-50 border-slate-200" />
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleEmailSubmit()}
+                  placeholder="john@example.com"
+                  className="h-11 bg-slate-50 border-slate-200"
+                  autoFocus
+                />
               </div>
-            </div>
+              <Button onClick={handleEmailSubmit} disabled={loading}
+                className="w-full h-12 bg-[#1B4332] hover:bg-[#2D6A4F] text-white font-bold uppercase tracking-wider rounded-xl">
+                {loading ? 'Checking...' : <span className="flex items-center justify-center gap-2">Continue <ArrowRight className="w-4 h-4" /></span>}
+              </Button>
+            </>
           )}
 
-          <div className="text-center">
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 block">
-              {mode === 'login' ? 'Enter Your PIN' : 'Choose a 4-Digit PIN'}
-            </label>
-            <div className="flex justify-center">
-              <InputOTP maxLength={4} value={pin} onChange={setPin} onComplete={handlePinComplete}>
-                <InputOTPGroup className="gap-3">
-                  {[0,1,2,3].map(i => (
-                    <InputOTPSlot key={i} index={i}
-                      className="w-12 h-12 text-xl font-bold font-heading border-2 border-slate-200 rounded-xl focus:border-[#1B4332]" />
-                  ))}
-                </InputOTPGroup>
-              </InputOTP>
-            </div>
-          </div>
-
-          <Button onClick={mode === 'login' ? handleLogin : handleRegister} disabled={loading}
-            className="w-full h-12 bg-[#1B4332] hover:bg-[#2D6A4F] text-white font-bold uppercase tracking-wider rounded-xl">
-            {loading ? 'Loading...' : mode === 'login' ? 'Sign In' : 'Create Account & Save'}
-          </Button>
+          {step === 2 && (
+            <>
+              <div className="text-center">
+                <p className="text-sm text-slate-500">No account found for</p>
+                <p className="text-sm text-[#1B4332] font-bold break-all">{email}</p>
+                <p className="text-xs text-slate-400 mt-1">Enter your name to create an account.</p>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1 block">Full Name</label>
+                <Input
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleRegister()}
+                  placeholder="John Smith"
+                  className="h-11 bg-slate-50 border-slate-200"
+                  autoFocus
+                />
+              </div>
+              <Button onClick={handleRegister} disabled={loading}
+                className="w-full h-12 bg-[#1B4332] hover:bg-[#2D6A4F] text-white font-bold uppercase tracking-wider rounded-xl">
+                {loading ? 'Creating...' : 'Create Account'}
+              </Button>
+              <button onClick={() => setStep(1)}
+                className="w-full text-xs text-slate-400 hover:text-slate-600 flex items-center justify-center gap-1 transition-colors">
+                <ArrowLeft className="w-3 h-3" /> Use a different email
+              </button>
+            </>
+          )}
         </div>
       </DialogContent>
     </Dialog>

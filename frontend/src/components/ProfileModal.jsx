@@ -6,31 +6,27 @@ import { API, useAuth } from '../App';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
-import { InputOTP, InputOTPGroup, InputOTPSlot } from '../components/ui/input-otp';
 
 export default function ProfileModal({ open, onClose }) {
   const { user, updateUser, logout } = useAuth();
   const navigate = useNavigate();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [pin, setPin] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (user && open) {
       setName(user.name || '');
       setEmail(user.email || '');
-      setPin(user.pin || '');
     }
   }, [user, open]);
 
   const handleSave = async () => {
     if (!name.trim()) { toast.error('Name is required'); return; }
     if (!email.trim()) { toast.error('Email is required'); return; }
-    if (pin.length !== 4) { toast.error('PIN must be 4 digits'); return; }
     setSaving(true);
     try {
-      const { data } = await axios.put(`${API}/auth/profile/${user.id}`, { name: name.trim(), email: email.trim(), pin });
+      const { data } = await axios.put(`${API}/auth/profile/${user.id}`, { name: name.trim(), email: email.trim() });
       updateUser(data);
       toast.success('Profile updated!');
       onClose();
@@ -48,7 +44,7 @@ export default function ProfileModal({ open, onClose }) {
       >
         <DialogHeader className="pb-1">
           <DialogTitle className="font-heading font-bold text-lg">Edit Profile</DialogTitle>
-          <DialogDescription className="text-xs">Update your name, email, or PIN.</DialogDescription>
+          <DialogDescription className="text-xs">Update your name or email.</DialogDescription>
         </DialogHeader>
         <div className="space-y-3 pt-1">
           <div>
@@ -69,19 +65,6 @@ export default function ProfileModal({ open, onClose }) {
               onChange={e => setEmail(e.target.value)}
               className="h-10 bg-slate-50 focus:border-[#1B4332] text-sm"
             />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1 block">PIN</label>
-            <div className="flex justify-center" data-testid="profile-pin">
-              <InputOTP maxLength={4} value={pin} onChange={setPin}>
-                <InputOTPGroup className="gap-2">
-                  {[0,1,2,3].map(i => (
-                    <InputOTPSlot key={i} index={i}
-                      className="w-11 h-11 text-lg font-bold font-heading border-2 border-slate-200 rounded-xl" />
-                  ))}
-                </InputOTPGroup>
-              </InputOTP>
-            </div>
           </div>
 
           <Button

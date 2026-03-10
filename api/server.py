@@ -29,7 +29,7 @@ api_router = APIRouter(prefix="/api")
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-ADMIN_PIN = os.environ.get("ADMIN_PIN", "3669")
+ADMIN_EMAIL = "adavidfr2006@gmail.com"
 ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports/golf/pga"
 
 CUT_EARNINGS = 10_000  # Flat earnings for any player who misses the cut
@@ -41,12 +41,10 @@ def gen_id():
 class UserCreate(BaseModel):
     name: str
     email: str
-    pin: str
 
 class UserUpdate(BaseModel):
     name: Optional[str] = None
     email: Optional[str] = None
-    pin: Optional[str] = None
 
 class TeamCreate(BaseModel):
     user_id: str
@@ -349,34 +347,36 @@ async def espn_get_field(event_id, event_date=None):
 # ── Auth Routes ──
 @api_router.post("/auth/register")
 async def register(data: UserCreate):
-    if len(data.pin) != 4 or not data.pin.isdigit():
-        raise HTTPException(status_code=400, detail="PIN must be exactly 4 digits")
-    if await db.users.find_one({"email": data.email.lower()}, {"_id": 0}):
-        raise HTTPException(status_code=400, detail="Email already in use")
-    if await db.users.find_one({"pin": data.pin}, {"_id": 0}):
-        raise HTTPException(status_code=400, detail="PIN already in use. Please choose a different PIN.")
+    if not data.email.strip():
+        raise HTTPException(status_code=400, detail="Email is required")
+    if not data.name.strip():
+        raise HTTPException(status_code=400, detail="Name is required")
+    if await db.users.find_one({"email": data.email.lower().strip()}, {"_id": 0}):
+        raise HTTPException(status_code=400, detail="An account with this email already exists")
     user = {
         "id": gen_id(), "name": data.name.strip(), "email": data.email.lower().strip(),
-        "pin": data.pin, "is_admin": data.pin == ADMIN_PIN,
+        "is_admin": data.email.lower().strip() == ADMIN_EMAIL,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.users.insert_one(user)
-    return {"id": user["id"], "name": user["name"], "email": user["email"], "pin": user["pin"], "is_admin": user["is_admin"]}
+    return {"id": user["id"], "name": user["name"], "email": user["email"], "is_admin": user["is_admin"]}
 
 @api_router.post("/auth/login")
 async def login(data: dict):
-    pin = data.get('pin', '')
-    user = await db.users.find_one({"pin": pin}, {"_id": 0})
+    email = data.get('email', '').lower().strip()
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required")
+    user = await db.users.find_one({"email": email}, {"_id": 0})
     if not user:
-        raise HTTPException(status_code=401, detail="Invalid PIN. No account found.")
-    return {"id": user["id"], "name": user["name"], "email": user["email"], "pin": user["pin"], "is_admin": user.get("is_admin", False)}
+        raise HTTPException(status_code=404, detail="No account found with this email")
+    return {"id": user["id"], "name": user["name"], "email": user["email"], "is_admin": user.get("is_admin", False)}
 
 @api_router.get("/auth/user/{user_id}")
 async def get_user(user_id: str):
     user = await db.users.find_one({"id": user_id}, {"_id": 0})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    return {"id": user["id"], "name": user["name"], "email": user["email"], "pin": user["pin"], "is_admin": user.get("is_admin", False)}
+    return {"id": user["id"], "name": user["name"], "email": user["email"], "is_admin": user.get("is_admin", False)}
 
 @api_router.put("/auth/profile/{user_id}")
 async def update_profile(user_id: str, data: UserUpdate):
@@ -392,14 +392,6 @@ async def update_profile(user_id: str, data: UserUpdate):
             if await db.users.find_one({"email": new_email, "id": {"$ne": user_id}}, {"_id": 0}):
                 raise HTTPException(status_code=400, detail="Email already in use")
             updates["email"] = new_email
-    if data.pin is not None:
-        if len(data.pin) != 4 or not data.pin.isdigit():
-            raise HTTPException(status_code=400, detail="PIN must be exactly 4 digits")
-        if data.pin != user["pin"]:
-            if await db.users.find_one({"pin": data.pin, "id": {"$ne": user_id}}, {"_id": 0}):
-                raise HTTPException(status_code=400, detail="PIN already in use")
-            updates["pin"] = data.pin
-            updates["is_admin"] = data.pin == ADMIN_PIN
     if updates:
         await db.users.update_one({"id": user_id}, {"$set": updates})
         if "name" in updates:
@@ -407,7 +399,7 @@ async def update_profile(user_id: str, data: UserUpdate):
         if "email" in updates:
             await db.teams.update_many({"user_id": user_id}, {"$set": {"user_email": updates["email"]}})
     updated = await db.users.find_one({"id": user_id}, {"_id": 0})
-    return {"id": updated["id"], "name": updated["name"], "email": updated["email"], "pin": updated["pin"], "is_admin": updated.get("is_admin", False)}
+    return {"id": updated["id"], "name": updated["name"], "email": updated["email"], "is_admin": updated.get("is_admin", False)}
 
 # ── Admin Routes ──
 async def check_admin(user_id):
@@ -996,9 +988,6 @@ async def handle_httpx_status_error(request, exc: httpx.HTTPStatusError):
 
 @app.on_event("startup")
 async def startup():
-    if ADMIN_PIN == "3669":
-        logger.warning("Using default ADMIN_PIN. Set ADMIN_PIN env var in production.")
-    await db.users.create_index("pin", unique=True)
     await db.users.create_index("email", unique=True)
     await db.users.create_index("id", unique=True)
     await db.tournaments.create_index("slot", unique=True)

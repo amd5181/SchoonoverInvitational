@@ -60,8 +60,7 @@ export default function HistoryPage() {
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto animate-fade-in-up" data-testid="legacy-page">
-      <h1 className="font-heading font-extrabold text-3xl sm:text-4xl text-[#0F172A] tracking-tight mb-2">HALL OF FAME</h1>
-      <p className="text-slate-500 text-sm mb-6">Past Champions of the Schoonover Invitational.</p>
+      <h1 className="font-heading font-extrabold text-3xl sm:text-4xl text-[#0F172A] tracking-tight mb-6">HALL OF FAME</h1>
 
       {/* Records Section */}
       {records && (

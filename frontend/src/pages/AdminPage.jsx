@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { API, useAuth } from '../App';
@@ -8,9 +8,10 @@ import { Badge } from '../components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
-import { Settings, Search, Download, DollarSign, Trash2, Loader2, Users, CheckCircle, ClipboardPaste, FileSpreadsheet, Calendar, Eye, Pencil, X, Mail } from 'lucide-react';
+import { Settings, Search, Download, DollarSign, Trash2, Loader2, Users, CheckCircle, ClipboardPaste, FileSpreadsheet, Calendar, Eye, Pencil, X, Mail, BarChart2, TrendingUp, Star } from 'lucide-react';
 
 const fmt = (n) => '$' + (n || 0).toLocaleString();
+const fmtK = (n) => n >= 1_000_000 ? '$' + (n / 1_000_000).toFixed(2) + 'M' : '$' + Math.round(n / 1000) + 'K';
 
 // Convert a UTC ISO string to a "YYYY-MM-DDTHH:MM" string in Eastern time (for datetime-local inputs)
 function toEasternInputValue(isoStr) {
@@ -58,6 +59,7 @@ export default function AdminPage() {
   const [oddsDialog, setOddsDialog] = useState({ open: false, slot: null });
   const [oddsText, setOddsText] = useState('');
   const [teamsDialog, setTeamsDialog] = useState({ open: false, tournament: null, teams: [] });
+  const [statsDialog, setStatsDialog] = useState({ open: false, tournament: null, teams: [] });
   const [editingTeam, setEditingTeam] = useState(null);
   const [editGolfers, setEditGolfers] = useState([]);
   const [payoutDialog, setPayoutDialog] = useState({ open: false, slot: null });
@@ -179,6 +181,16 @@ export default function AdminPage() {
     finally { setActionLoading(p => ({ ...p, [`teams_${tournament.slot}`]: false })); }
   };
 
+  const viewStats = async (tournament) => {
+    if (!tournament.id) { toast.error('Tournament not set up yet'); return; }
+    setActionLoading(p => ({ ...p, [`stats_${tournament.slot}`]: true }));
+    try {
+      const r = await axios.get(`${API}/admin/teams/${tournament.id}?user_id=${user.id}`);
+      setStatsDialog({ open: true, tournament: r.data.tournament, teams: r.data.teams });
+    } catch (e) { toast.error(e.response?.data?.detail || 'Failed to load stats'); }
+    finally { setActionLoading(p => ({ ...p, [`stats_${tournament.slot}`]: false })); }
+  };
+
   const startEditTeam = (team) => {
     setEditingTeam(team);
     setEditGolfers([...team.golfers]);
@@ -252,6 +264,30 @@ export default function AdminPage() {
     } catch (e) { toast.error('Failed to update payment status'); }
   };
 
+  const statsData = useMemo(() => {
+    const { teams, tournament } = statsDialog;
+    if (!teams || teams.length === 0) return null;
+    const teamCount = teams.length;
+    const allPicks = teams.flatMap(t => t.golfers || []);
+    const uniqueCount = new Set(allPicks.map(g => g.name)).size;
+    const teamSalaries = teams.map(t => (t.golfers || []).reduce((s, g) => s + (g.price || 0), 0));
+    const avgSalary = teamSalaries.reduce((a, b) => a + b, 0) / teamCount;
+    const pickCounts = {};
+    allPicks.forEach(g => { pickCounts[g.name] = (pickCounts[g.name] || 0) + 1; });
+    const mostPicked = Object.entries(pickCounts)
+      .map(([name, count]) => ({ name, count, pct: Math.round((count / teamCount) * 100) }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+      .slice(0, 8);
+    const minSalary = Math.min(...teamSalaries);
+    const lowestTeam = teams[teamSalaries.indexOf(minSalary)];
+    const pickedNames = new Set(allPicks.map(g => g.name.toLowerCase()));
+    const unpicked = (tournament?.golfers || [])
+      .filter(g => g.price && !pickedNames.has(g.name.toLowerCase()))
+      .sort((a, b) => (a.world_ranking || 999) - (b.world_ranking || 999))
+      .slice(0, 5);
+    return { teamCount, uniqueCount, avgSalary, mostPicked, lowestTeam, lowestSalary: minSalary, unpicked };
+  }, [statsDialog]);
+
   const allSlots = [1].map(slot => {
     const t = tournaments.find(x => x.slot === slot);
     return t || { slot, name: '', status: 'setup', golfers: [] };
@@ -263,7 +299,6 @@ export default function AdminPage() {
     <div className="p-4 md:p-8 max-w-5xl mx-auto animate-fade-in-up" data-testid="admin-page">
       <div className="mb-6">
         <h1 className="font-heading font-extrabold text-3xl sm:text-4xl text-[#0F172A] tracking-tight">ADMIN</h1>
-        <p className="text-slate-500 text-sm mt-1">Tournament Setup & Management</p>
       </div>
 
       {/* ESPN Event Search */}
@@ -295,11 +330,19 @@ export default function AdminPage() {
               </div>
               <div className="flex items-center gap-2">
                 {t.id && (
-                  <Button size="sm" variant="ghost" onClick={() => viewTeams(t)} 
-                    disabled={actionLoading[`teams_${t.slot}`]}
-                    className="h-7 px-2 text-white/80 hover:text-white hover:bg-white/10" data-testid={`view-teams-${t.slot}`}>
-                    {actionLoading[`teams_${t.slot}`] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Eye className="w-3.5 h-3.5 mr-1" />Teams</>}
-                  </Button>
+                  <>
+                    <Button size="sm" variant="ghost" onClick={() => viewTeams(t)}
+                      disabled={actionLoading[`teams_${t.slot}`]}
+                      className="h-7 px-2 text-white/80 hover:text-white hover:bg-white/10" data-testid={`view-teams-${t.slot}`}>
+                      {actionLoading[`teams_${t.slot}`] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Eye className="w-3.5 h-3.5 mr-1" />Teams</>}
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => viewStats(t)}
+                      disabled={actionLoading[`stats_${t.slot}`]}
+                      title="Entry Stats Snapshot"
+                      className="h-7 px-2 text-white/80 hover:text-white hover:bg-white/10">
+                      {actionLoading[`stats_${t.slot}`] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <BarChart2 className="w-3.5 h-3.5" />}
+                    </Button>
+                  </>
                 )}
                 <button onClick={() => resetTournament(t.slot)} 
                   disabled={actionLoading[`reset_${t.slot}`]}
@@ -480,6 +523,105 @@ export default function AdminPage() {
               {actionLoading[`payout_${payoutDialog.slot}`] ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <DollarSign className="w-4 h-4 mr-1" />}
               Save Payout Schedule
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Entry Stats Snapshot Dialog */}
+      <Dialog open={statsDialog.open} onOpenChange={(open) => !open && setStatsDialog({ open: false, tournament: null, teams: [] })}>
+        <DialogContent className="sm:max-w-lg max-h-[92vh] overflow-y-auto p-0">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-[#1B4332] to-[#2D6A4F] px-6 py-4 rounded-t-xl">
+            <div className="flex items-center gap-2">
+              <BarChart2 className="w-5 h-5 text-[#CCFF00]" />
+              <h2 className="font-heading font-bold text-white text-lg">Entry Snapshot</h2>
+              <span className="text-white/50 text-sm">— {statsDialog.tournament?.name}</span>
+            </div>
+          </div>
+
+          <div className="p-5 space-y-5">
+            {!statsData ? (
+              <div className="text-center py-10 text-slate-400">
+                <Users className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                <p className="text-sm">No teams entered yet</p>
+              </div>
+            ) : (
+              <>
+                {/* Top 3 metrics */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="bg-[#1B4332] rounded-xl p-3 text-center">
+                    <p className="text-[#CCFF00] font-numbers font-extrabold text-3xl">{statsData.teamCount}</p>
+                    <p className="text-white/70 text-[10px] uppercase tracking-wide mt-0.5 font-bold">Teams</p>
+                  </div>
+                  <div className="bg-[#2D6A4F] rounded-xl p-3 text-center">
+                    <p className="text-[#CCFF00] font-numbers font-extrabold text-3xl">{statsData.uniqueCount}</p>
+                    <p className="text-white/70 text-[10px] uppercase tracking-wide mt-0.5 font-bold">Unique Picks</p>
+                  </div>
+                  <div className="bg-amber-500 rounded-xl p-3 text-center">
+                    <p className="text-white font-numbers font-extrabold text-2xl leading-tight">{fmtK(statsData.avgSalary)}</p>
+                    <p className="text-white/80 text-[10px] uppercase tracking-wide mt-0.5 font-bold">Avg Salary</p>
+                  </div>
+                </div>
+
+                {/* Most popular picks */}
+                <div>
+                  <div className="flex items-center gap-1.5 mb-3">
+                    <TrendingUp className="w-4 h-4 text-[#1B4332]" />
+                    <h3 className="font-bold text-sm text-[#0F172A] uppercase tracking-wide">Most Popular Picks</h3>
+                  </div>
+                  <div className="space-y-2">
+                    {statsData.mostPicked.map((p, i) => (
+                      <div key={p.name} className="flex items-center gap-2">
+                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${
+                          i === 0 ? 'bg-yellow-400 text-yellow-900' :
+                          i === 1 ? 'bg-slate-200 text-slate-600' :
+                          i === 2 ? 'bg-amber-200 text-amber-800' : 'bg-slate-100 text-slate-500'
+                        }`}>{i + 1}</span>
+                        <span className="text-xs font-medium text-[#0F172A] w-36 truncate flex-shrink-0">{p.name}</span>
+                        <div className="flex-1 bg-slate-100 rounded-full h-4 overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-[#1B4332] to-[#2D6A4F] rounded-full flex items-center justify-end pr-1.5 transition-all"
+                            style={{ width: `${p.pct}%`, minWidth: '2rem' }}
+                          >
+                            <span className="text-[9px] font-bold text-white">{p.pct}%</span>
+                          </div>
+                        </div>
+                        <span className="text-[10px] text-slate-400 w-10 text-right flex-shrink-0">{p.count}/{statsData.teamCount}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Bottom row */}
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Lowest spender */}
+                  <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <DollarSign className="w-3.5 h-3.5 text-slate-400" />
+                      <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Tightest Budget</h3>
+                    </div>
+                    <p className="font-bold text-sm text-[#0F172A] truncate">{statsData.lowestTeam?.user_name} #{statsData.lowestTeam?.team_number}</p>
+                    <p className="font-numbers font-bold text-[#1B4332] text-base mt-0.5">{fmt(statsData.lowestSalary)}</p>
+                  </div>
+
+                  {/* Overlooked elites */}
+                  <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <Star className="w-3.5 h-3.5 text-slate-400" />
+                      <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Overlooked Elites</h3>
+                    </div>
+                    <div className="space-y-1">
+                      {statsData.unpicked.map(g => (
+                        <div key={g.name} className="flex items-center gap-2">
+                          <span className="text-[9px] font-bold bg-[#1B4332] text-[#CCFF00] rounded px-1.5 py-0.5 flex-shrink-0">#{g.world_ranking}</span>
+                          <span className="text-xs text-[#0F172A] truncate">{g.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>

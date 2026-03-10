@@ -125,7 +125,7 @@ export default function HomePage() {
           alt="Schoonover Invitational"
           className="h-16 w-16 object-contain flex-shrink-0"
         />
-        <span className="font-bold text-2xl md:text-3xl text-[#0F172A] tracking-wide">MASTERS OF THE FOX VALLEY</span>
+        <span className="font-bold text-lg md:text-2xl text-[#0F172A] tracking-wide">Masters of the Fox Valley</span>
       </div>
 
       {/* Hero */}
@@ -151,8 +151,6 @@ export default function HomePage() {
         <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
 
         <div className="relative px-6 py-10 md:px-10 md:py-14 max-w-xl">
-          <p className="text-[#CCFF00] font-bold text-xs uppercase tracking-widest mb-2">Schoonover Invitational</p>
-
           <div className="flex flex-wrap items-center gap-3 mb-2">
             <h1 className="font-heading font-extrabold text-4xl sm:text-5xl text-white tracking-tight" data-testid="home-title">
               THE MASTERS
@@ -160,8 +158,8 @@ export default function HomePage() {
             <Badge className={badge.cls + ' text-xs font-bold px-3 py-1 self-center'}>{badge.text}</Badge>
           </div>
 
-          <div className="flex items-center gap-2 text-white/90 text-sm mb-8">
-            <MapPin className="w-3.5 h-3.5" />
+          <div className="flex items-center gap-2 text-white/90 text-xs mb-8">
+            <MapPin className="w-3 h-3 flex-shrink-0" />
             <span>Augusta National Golf Club · Augusta, Georgia</span>
           </div>
 

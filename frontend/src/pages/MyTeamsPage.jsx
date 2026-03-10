@@ -304,7 +304,7 @@ export default function MyTeamsPage() {
 
             {/* Golfer List */}
             <div className="bg-white rounded-xl border-2 border-slate-300 shadow-md overflow-hidden">
-              <div className="p-3 bg-slate-50 border-b-2 border-slate-300 flex items-center gap-2">
+              <div className="p-3 bg-slate-200 border-b-2 border-slate-400 flex items-center gap-2">
                 <Search className="w-4 h-4 text-slate-400" />
                 <Input data-testid="golfer-search" value={search} onChange={e => setSearch(e.target.value)}
                   placeholder="Search golfers..." className="h-9 border-0 shadow-none focus-visible:ring-0 text-sm" />

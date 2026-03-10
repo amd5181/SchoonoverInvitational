@@ -20,6 +20,8 @@ export default function MyTeamsPage() {
   const [userTeams, setUserTeams] = useState([]);
   const [team1, setTeam1] = useState([null, null, null, null, null]);
   const [team2, setTeam2] = useState([null, null, null, null, null]);
+  const [savedTeam1, setSavedTeam1] = useState([null, null, null, null, null]);
+  const [savedTeam2, setSavedTeam2] = useState([null, null, null, null, null]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -41,8 +43,12 @@ export default function MyTeamsPage() {
             setUserTeams(r2.data);
             const t1 = r2.data.find(x => x.tournament_id === masters.id && x.team_number === 1);
             const t2 = r2.data.find(x => x.tournament_id === masters.id && x.team_number === 2);
-            setTeam1(t1 ? [...t1.golfers, ...Array(5 - t1.golfers.length).fill(null)] : [null,null,null,null,null]);
-            setTeam2(t2 ? [...t2.golfers, ...Array(5 - t2.golfers.length).fill(null)] : [null,null,null,null,null]);
+            const loaded1 = t1 ? [...t1.golfers, ...Array(5 - t1.golfers.length).fill(null)] : [null,null,null,null,null];
+            const loaded2 = t2 ? [...t2.golfers, ...Array(5 - t2.golfers.length).fill(null)] : [null,null,null,null,null];
+            setTeam1(loaded1);
+            setTeam2(loaded2);
+            setSavedTeam1(loaded1);
+            setSavedTeam2(loaded2);
           }).catch(() => {});
         }
       })
@@ -50,10 +56,13 @@ export default function MyTeamsPage() {
       .finally(() => setLoading(false));
   }, [user]);
 
+  // Golfer map with ranks computed by price (most expensive = #1)
   const golferMap = useMemo(() => {
     if (!tournament?.golfers) return {};
+    const sorted = [...tournament.golfers].filter(g => g.price).sort((a, b) => (b.price || 0) - (a.price || 0));
     const map = {};
-    tournament.golfers.forEach((g, i) => { map[g.name] = { ...g, world_ranking: g.world_ranking || i + 1 }; });
+    sorted.forEach((g, i) => { map[g.name] = { ...g, world_ranking: i + 1 }; });
+    tournament.golfers.filter(g => !g.price).forEach(g => { if (!map[g.name]) map[g.name] = { ...g }; });
     return map;
   }, [tournament]);
 
@@ -74,13 +83,16 @@ export default function MyTeamsPage() {
   const currentFull = currentTeam.filter(Boolean).length >= 5;
   const remaining = BUDGET - currentCost;
 
+  const isDirty = JSON.stringify(team1) !== JSON.stringify(savedTeam1) ||
+                  JSON.stringify(team2) !== JSON.stringify(savedTeam2);
+
   const addGolfer = (golfer) => {
     if (locked) { toast.error('Teams are locked!'); return false; }
     const team = [...currentTeam];
     if (team.some(g => g?.name === golfer.name)) { toast.error('Already on this team'); return false; }
     const slot = team.findIndex(g => g === null);
     if (slot === -1) { toast.error('Team is full'); return false; }
-    team[slot] = { name: golfer.name, espn_id: golfer.espn_id, price: golfer.price, world_ranking: golfer.world_ranking };
+    team[slot] = { name: golfer.name, espn_id: golfer.espn_id, price: golfer.price, world_ranking: golferMap[golfer.name]?.world_ranking || golfer.world_ranking };
     setCurrentTeam(team);
     return true;
   };
@@ -105,29 +117,46 @@ export default function MyTeamsPage() {
 
   const clearTeam = () => { if (!locked) setCurrentTeam([null,null,null,null,null]); };
 
-  const saveTeam = async () => {
+  const saveTeams = async () => {
     if (!user) { setAuthMode('login'); setAuthOpen(true); return; }
-    const filled = currentTeam.filter(Boolean);
-    if (filled.length === 0) {
-      const existing = userTeams.find(t => t.tournament_id === tournament.id && t.team_number === activeTeam);
-      if (existing) {
-        try {
-          await axios.delete(`${API}/teams/${existing.id}?user_id=${user.id}`);
-          toast.success(`Team #${activeTeam} deleted`);
-          setUserTeams((await axios.get(`${API}/teams/user/${user.id}`)).data);
-        } catch (e) { toast.error(e.response?.data?.detail || 'Delete failed'); }
-      }
-      return;
-    }
-    if (filled.length !== 5) { toast.error('Select exactly 5 golfers'); return; }
-    if (currentCost > BUDGET) { toast.error('Over budget!'); return; }
+
+    const filled1 = team1.filter(Boolean);
+    const filled2 = team2.filter(Boolean);
+
+    if (filled1.length > 0 && filled1.length !== 5) { toast.error('Team 1 must have exactly 5 golfers (or be empty)'); return; }
+    if (filled2.length > 0 && filled2.length !== 5) { toast.error('Team 2 must have exactly 5 golfers (or be empty)'); return; }
+    if (team1Cost > BUDGET) { toast.error('Team 1 is over budget!'); return; }
+    if (team2Cost > BUDGET) { toast.error('Team 2 is over budget!'); return; }
+
     setSaving(true);
     try {
-      await axios.post(`${API}/teams`, { user_id: user.id, tournament_id: tournament.id, team_number: activeTeam, golfers: filled });
-      toast.success(`Team #${activeTeam} saved!`);
-      setUserTeams((await axios.get(`${API}/teams/user/${user.id}`)).data);
-    } catch (e) { toast.error(e.response?.data?.detail || 'Save failed'); }
-    finally { setSaving(false); }
+      const ops = [];
+
+      const existing1 = userTeams.find(t => t.tournament_id === tournament.id && t.team_number === 1);
+      if (filled1.length === 0 && existing1) {
+        ops.push(axios.delete(`${API}/teams/${existing1.id}?user_id=${user.id}`));
+      } else if (filled1.length === 5) {
+        ops.push(axios.post(`${API}/teams`, { user_id: user.id, tournament_id: tournament.id, team_number: 1, golfers: filled1 }));
+      }
+
+      const existing2 = userTeams.find(t => t.tournament_id === tournament.id && t.team_number === 2);
+      if (filled2.length === 0 && existing2) {
+        ops.push(axios.delete(`${API}/teams/${existing2.id}?user_id=${user.id}`));
+      } else if (filled2.length === 5) {
+        ops.push(axios.post(`${API}/teams`, { user_id: user.id, tournament_id: tournament.id, team_number: 2, golfers: filled2 }));
+      }
+
+      await Promise.all(ops);
+      toast.success('Teams saved!');
+      const updated = (await axios.get(`${API}/teams/user/${user.id}`)).data;
+      setUserTeams(updated);
+      setSavedTeam1([...team1]);
+      setSavedTeam2([...team2]);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Save failed');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleAuthSuccess = async (loggedInUser) => {
@@ -137,8 +166,12 @@ export default function MyTeamsPage() {
       setUserTeams(r.data);
       const t1 = r.data.find(x => x.tournament_id === tournament.id && x.team_number === 1);
       const t2 = r.data.find(x => x.tournament_id === tournament.id && x.team_number === 2);
-      if (t1) setTeam1([...t1.golfers, ...Array(5 - t1.golfers.length).fill(null)]);
-      if (t2) setTeam2([...t2.golfers, ...Array(5 - t2.golfers.length).fill(null)]);
+      const loaded1 = t1 ? [...t1.golfers, ...Array(5 - t1.golfers.length).fill(null)] : [null,null,null,null,null];
+      const loaded2 = t2 ? [...t2.golfers, ...Array(5 - t2.golfers.length).fill(null)] : [null,null,null,null,null];
+      if (t1) setTeam1(loaded1);
+      if (t2) setTeam2(loaded2);
+      setSavedTeam1(loaded1);
+      setSavedTeam2(loaded2);
     } catch {}
   };
 
@@ -183,27 +216,27 @@ export default function MyTeamsPage() {
             </div>
           )}
 
-          <div className="mb-4">
-            <div className="flex items-center gap-2 bg-slate-100 rounded-xl p-1 w-fit">
-              <button onClick={() => setActiveTeam(1)} data-testid="toggle-team-1"
-                className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTeam === 1 ? 'bg-[#1B4332] text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                Team 1
-              </button>
-              <button onClick={() => setActiveTeam(2)} data-testid="toggle-team-2"
-                className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTeam === 2 ? 'bg-[#2D6A4F] text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                Team 2
-              </button>
-            </div>
-          </div>
-
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
             {/* Team Panel */}
             <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden" data-testid={`team-${activeTeam}-panel`}>
-              <div className={`px-4 py-3 flex items-center justify-between ${activeTeam === 1 ? 'bg-gradient-to-r from-[#1B4332] to-[#2D6A4F]' : 'bg-gradient-to-r from-[#2D6A4F] to-[#1B4332]'}`}>
-                <span className="text-white font-heading font-bold text-sm uppercase tracking-wider">
-                  {user ? `${user.name}'s` : 'Your'} Team {activeTeam}
-                </span>
+              {/* Header with integrated team toggle */}
+              <div className="px-4 py-3 flex items-center justify-between bg-gradient-to-r from-[#1B4332] to-[#2D6A4F]">
+                <div className="flex items-center gap-2">
+                  <span className="text-white/70 text-xs font-semibold uppercase tracking-wider hidden sm:inline">
+                    {user ? user.name : 'Your'}
+                  </span>
+                  <div className="flex items-center bg-white/15 rounded-lg p-0.5">
+                    <button onClick={() => setActiveTeam(1)} data-testid="toggle-team-1"
+                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${activeTeam === 1 ? 'bg-white text-[#1B4332] shadow-sm' : 'text-white/70 hover:text-white'}`}>
+                      {user ? `${user.name.split(' ')[0]}'s` : ''} Team 1
+                    </button>
+                    <button onClick={() => setActiveTeam(2)} data-testid="toggle-team-2"
+                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${activeTeam === 2 ? 'bg-white text-[#2D6A4F] shadow-sm' : 'text-white/70 hover:text-white'}`}>
+                      {user ? `${user.name.split(' ')[0]}'s` : ''} Team 2
+                    </button>
+                  </div>
+                </div>
                 {!locked && <button onClick={clearTeam} className="text-white/60 hover:text-white" data-testid={`clear-team-${activeTeam}`}><Trash2 className="w-4 h-4" /></button>}
               </div>
 
@@ -213,7 +246,7 @@ export default function MyTeamsPage() {
                     <span className="w-6 text-sm font-bold text-slate-400 font-numbers">{i + 1}</span>
                     {g ? (
                       <>
-                        <span className="w-10 text-xs font-bold text-slate-500 font-numbers">#{golferMap[g.name]?.world_ranking || g.world_ranking || '?'}</span>
+                        <span className="w-10 text-xs font-bold text-slate-500 font-numbers">#{golferMap[g.name]?.world_ranking || '?'}</span>
                         <span className="flex-1 text-sm font-medium text-[#0F172A] truncate">{g.name}</span>
                         <span className="text-xs font-bold font-numbers text-[#2D6A4F] ml-2 mr-3">{fmt(g.price)}</span>
                         {!locked && <button onClick={() => removeGolfer(i)} className="text-red-400 hover:text-red-600" data-testid={`remove-golfer-${activeTeam}-${i}`}><Minus className="w-4 h-4" /></button>}
@@ -225,7 +258,7 @@ export default function MyTeamsPage() {
                 ))}
               </div>
 
-              {/* Budget bar */}
+              {/* Budget bar with save button */}
               <div className="px-4 py-3 bg-slate-50 border-t border-slate-100">
                 <div className="flex justify-between text-xs font-semibold mb-1.5">
                   <span className={over ? 'text-red-500' : 'text-slate-500'}><DollarSign className="w-3.5 h-3.5 inline" />{fmt(currentCost)} / {fmt(BUDGET)}</span>
@@ -233,47 +266,55 @@ export default function MyTeamsPage() {
                     {over ? <><AlertTriangle className="w-3.5 h-3.5 inline mr-0.5" />OVER {fmt(currentCost - BUDGET)}</> : `${fmt(remaining)} left`}
                   </span>
                 </div>
-                <div className="h-2.5 bg-slate-200 rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full budget-bar ${over ? 'bg-red-500' : 'bg-[#1B4332]'}`} style={{ width: `${pct}%` }} />
-                </div>
-              </div>
-
-              {/* Save / Auth button */}
-              {!locked && (
-                <div className="p-4 border-t border-slate-100">
-                  {user ? (
-                    <Button onClick={saveTeam} disabled={saving} data-testid={`save-team-${activeTeam}`}
-                      className={`w-full h-11 font-bold text-base ${activeTeam === 1 ? 'bg-[#1B4332] hover:bg-[#2D6A4F]' : 'bg-[#2D6A4F] hover:bg-[#1B4332]'} text-white`}>
-                      {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
-                      Save Team {activeTeam}
-                    </Button>
-                  ) : (
-                    <div className="space-y-2">
-                      <Button onClick={() => { setAuthMode('register'); setAuthOpen(true); }}
-                        className="w-full h-11 font-bold text-base bg-[#1B4332] hover:bg-[#2D6A4F] text-white">
-                        <UserPlus className="w-5 h-5 mr-2" />Create Account to Save
-                      </Button>
-                      <button onClick={() => { setAuthMode('login'); setAuthOpen(true); }}
-                        className="w-full text-center text-xs text-slate-500 hover:text-[#1B4332] font-medium py-1 transition-colors">
-                        Already have an account? Sign in →
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-2.5 bg-slate-200 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full budget-bar ${over ? 'bg-red-500' : 'bg-[#1B4332]'}`} style={{ width: `${pct}%` }} />
+                  </div>
+                  {!locked && (
+                    user ? (
+                      <div className="relative flex-shrink-0">
+                        {isDirty && (
+                          <div className="absolute inset-0 rounded-full bg-yellow-400 animate-ping opacity-40" />
+                        )}
+                        <button
+                          onClick={saveTeams}
+                          disabled={saving}
+                          data-testid="save-teams-btn"
+                          className={`relative flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all disabled:opacity-50 ${
+                            isDirty
+                              ? 'bg-yellow-400 text-yellow-900 shadow-lg shadow-yellow-400/50'
+                              : 'bg-yellow-600/30 text-yellow-900/50'
+                          }`}
+                        >
+                          {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                          Save
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => { setAuthMode('register'); setAuthOpen(true); }}
+                        className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold bg-yellow-600/30 text-yellow-900/50 hover:bg-yellow-400 hover:text-yellow-900 transition-all"
+                      >
+                        <UserPlus className="w-3 h-3" />Save
                       </button>
-                    </div>
+                    )
                   )}
                 </div>
-              )}
+              </div>
             </div>
 
             {/* Golfer List */}
-            <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
-              <div className="p-3 border-b border-slate-100 flex items-center gap-2">
+            <div className="bg-white rounded-xl border-2 border-slate-300 shadow-md overflow-hidden">
+              <div className="p-3 bg-slate-50 border-b-2 border-slate-300 flex items-center gap-2">
                 <Search className="w-4 h-4 text-slate-400" />
                 <Input data-testid="golfer-search" value={search} onChange={e => setSearch(e.target.value)}
                   placeholder="Search golfers..." className="h-9 border-0 shadow-none focus-visible:ring-0 text-sm" />
                 <Badge variant="outline" className="text-xs whitespace-nowrap">{golfers.length}</Badge>
               </div>
               <ScrollArea className="h-[450px] lg:h-[500px]">
-                <div className="divide-y divide-slate-50">
+                <div className="divide-y divide-slate-100">
                   {golfers.map((g, i) => {
+                    const rank = golferMap[g.name]?.world_ranking || i + 1;
                     const onT1 = team1.some(t => t?.name === g.name);
                     const onT2 = team2.some(t => t?.name === g.name);
                     const onCurrentTeam = currentTeam.some(t => t?.name === g.name);
@@ -283,7 +324,7 @@ export default function MyTeamsPage() {
                       <div key={g.espn_id || i}
                         className={`flex items-center px-3 py-2.5 transition-colors ${onCurrentTeam ? 'bg-green-50' : cantAdd ? 'opacity-40' : 'hover:bg-slate-50'}`}
                         data-testid={`golfer-row-${i}`}>
-                        <span className="w-9 text-xs font-bold text-slate-600 font-numbers">#{g.world_ranking || i+1}</span>
+                        <span className="w-9 text-xs font-bold text-slate-600 font-numbers">#{rank}</span>
                         <div className="flex-1 min-w-0 mr-2">
                           <span className="text-sm font-medium text-[#0F172A] block truncate">{g.name}</span>
                           <span className={`text-xs font-bold font-numbers ${wouldExceedBudget ? 'text-red-400' : 'text-[#2D6A4F]'}`}>

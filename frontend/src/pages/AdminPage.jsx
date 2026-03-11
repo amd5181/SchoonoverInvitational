@@ -816,12 +816,19 @@ export default function AdminPage() {
                           const choice = manualChoices[p.player_id];
                           const isRemoved = choice === 'removed';
                           const isMapped = choice && choice !== 'removed';
-                          // For the dropdown, show candidates + all available ESPN players
-                          const candidateIds = new Set((p.candidates || []).map(c => c.espn_id));
+                          const currentChoiceId = isMapped ? choice.espn_id : null;
+                          // Available for THIS row = not claimed by anyone else, plus this row's own current choice
+                          const availableForThis = espnPool.filter(ep =>
+                            !usedEspnIds.has(ep.espn_id) || ep.espn_id === currentChoiceId
+                          );
+                          const availableIds = new Set(availableForThis.map(ep => ep.espn_id));
+                          // Candidates filtered to only available slots (so claimed ones vanish)
+                          const filteredCandidates = (p.candidates || []).filter(c => availableIds.has(c.espn_id));
+                          const candidateIds = new Set(filteredCandidates.map(c => c.espn_id));
                           const dropdownOptions = [
-                            ...(p.candidates || []).map(c => ({ ...c, isSuggested: true })),
-                            ...availableEspnForDropdown.filter(ep => !candidateIds.has(ep.espn_id) && !(isMapped && ep.espn_id === choice.espn_id)).map(ep => ({ espn_id: ep.espn_id, espn_name: ep.espn_name, short_name: ep.short_name, score: 0, isSuggested: false })),
-                            ...(isMapped ? [{ espn_id: choice.espn_id, espn_name: choice.espn_name, short_name: choice.short_name, score: 1, isSuggested: true }] : []),
+                            ...filteredCandidates.map(c => ({ ...c, isSuggested: true })),
+                            ...availableForThis.filter(ep => !candidateIds.has(ep.espn_id))
+                              .map(ep => ({ espn_id: ep.espn_id, espn_name: ep.espn_name, short_name: ep.short_name, score: 0, isSuggested: false })),
                           ].filter((ep, idx, arr) => arr.findIndex(x => x.espn_id === ep.espn_id) === idx);
 
                           return (

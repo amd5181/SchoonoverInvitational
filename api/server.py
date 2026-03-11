@@ -804,6 +804,16 @@ async def admin_confirm_sync(slot: int, data: SyncMappingConfirm, user_id: str =
     not_in_field = [g for g in all_g if g.get("mapping_status") == "not_in_field"]
     for i, g in enumerate(active):
         g["world_ranking"] = i + 1
+    # Promote ESPN name to canonical name for all mapped players
+    # Build old_name -> new_name map before mutating
+    old_to_new: Dict[str, Dict] = {}
+    for g in active:
+        if g.get("mapping_status") in ("auto_mapped", "manually_mapped") and g.get("espn_name"):
+            old_name = g.get("name", "")
+            new_name = g["espn_name"]
+            if old_name.lower() != new_name.lower():
+                old_to_new[old_name.lower()] = {"new_name": new_name, "espn_id": g.get("espn_id")}
+            g["name"] = new_name  # always promote espn_name to canonical
     final_golfers = active + not_in_field
     # Update sync_state to remove resolved items
     resolved_manual = set((data.manual_mappings or {}).keys()) | unmap_set
@@ -817,10 +827,34 @@ async def admin_confirm_sync(slot: int, data: SyncMappingConfirm, user_id: str =
     }
     still_pending = updated_sync_state["pending_manual"]
     new_status = "prices_set" if not still_pending else t.get("status", "manually_loaded")
+    # Build espn_id lookup for all mapped active golfers (by new canonical name)
+    name_to_espn_id: Dict[str, str] = {
+        g["name"].lower(): g["espn_id"] for g in active
+        if g.get("mapping_status") in ("auto_mapped", "manually_mapped") and g.get("espn_id")
+    }
     await db.tournaments.update_one(
         {"slot": slot},
         {"$set": {"golfers": final_golfers, "status": new_status, "sync_state": updated_sync_state}}
     )
+    # Update team golfer names to ESPN canonical names
+    if old_to_new or name_to_espn_id:
+        teams = await db.teams.find({"tournament_id": t["id"]}, {"_id": 0}).to_list(500)
+        for team in teams:
+            new_tg = []
+            changed = False
+            for tg in team.get("golfers", []):
+                tg_key = (tg.get("name") or "").lower()
+                if tg_key in old_to_new:
+                    info = old_to_new[tg_key]
+                    new_tg.append({**tg, "name": info["new_name"], "espn_id": info["espn_id"]})
+                    changed = True
+                elif tg_key in name_to_espn_id and not tg.get("espn_id"):
+                    new_tg.append({**tg, "espn_id": name_to_espn_id[tg_key]})
+                    changed = True
+                else:
+                    new_tg.append(tg)
+            if changed:
+                await db.teams.update_one({"id": team["id"]}, {"$set": {"golfers": new_tg}})
     return await db.tournaments.find_one({"slot": slot}, {"_id": 0})
 
 @api_router.post("/admin/unmap-player/{slot}")

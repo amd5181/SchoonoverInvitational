@@ -8,7 +8,6 @@ import { Badge } from '../components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import {
   Settings, Search, Download, DollarSign, Trash2, Loader2, Users, CheckCircle,
   ClipboardPaste, FileSpreadsheet, Calendar, Eye, Pencil, X, Mail, BarChart2,
@@ -81,17 +80,23 @@ export default function AdminPage() {
   const [payoutText, setPayoutText] = useState('');
   const [currentPayouts, setCurrentPayouts] = useState([]);
 
-  // ── New upload/sync state ──
+  // ── Upload state ──
   const [uploadDialog, setUploadDialog] = useState({ open: false, slot: null });
   const [uploadText, setUploadText] = useState('');
-  const [syncDialog, setSyncDialog] = useState({ open: false, slot: null, data: null });
-  // Local sync decisions (before confirming)
-  const [syncDecisions, setSyncDecisions] = useState({
-    unmapped: new Set(),          // player_ids to unmap from auto_mapped_new
-    manualMappings: {},           // player_id -> {espn_id, espn_name, short_name} | null
-    espnAdditions: {},            // espn_id -> price string
-    espnDiscards: new Set(),      // espn_ids to discard
-  });
+  // ── Sync dialog state ──
+  const [syncDialog, setSyncDialog] = useState({ open: false, slot: null });
+  // localMapped: all auto-matched + already_mapped players currently shown in matched section
+  const [localMapped, setLocalMapped] = useState([]);
+  // unlinkedIds: player_ids that the admin has unlinked (need backend unmap)
+  const [unlinkedIds, setUnlinkedIds] = useState(new Set());
+  // unmatchedManual: pre-loaded players needing mapping (pending_manual + unlinked)
+  const [unmatchedManual, setUnmatchedManual] = useState([]);
+  // manualChoices: {player_id: {espn_id, espn_name, short_name} | 'removed'}
+  const [manualChoices, setManualChoices] = useState({});
+  // espnPool: initial pending_espn list (static; availability computed dynamically)
+  const [espnPool, setEspnPool] = useState([]);
+  // espnPrices: {espn_id: price_string} for ESPN-only players the admin wants to add
+  const [espnPrices, setEspnPrices] = useState({});
 
   const fetchTournaments = async () => {
     try {
@@ -163,49 +168,46 @@ export default function AdminPage() {
     setActionLoading(p => ({ ...p, [`sync_${slot}`]: true }));
     try {
       const r = await axios.post(`${API}/admin/sync-espn/${slot}?user_id=${user.id}`);
-      setSyncDecisions({ unmapped: new Set(), manualMappings: {}, espnAdditions: {}, espnDiscards: new Set() });
-      setSyncDialog({ open: true, slot, data: r.data });
-      toast.success(r.data.message);
+      const d = r.data;
+      // Combine auto_mapped_new + already_mapped into single matched list
+      const mapped = [
+        ...(d.auto_mapped_new || []).map(p => ({ ...p, _source: 'new' })),
+        ...(d.already_mapped || []).map(p => ({ ...p, _source: 'prior' })),
+      ];
+      setLocalMapped(mapped);
+      setUnlinkedIds(new Set());
+      setUnmatchedManual(d.pending_manual || []);
+      setManualChoices({});
+      setEspnPool(d.pending_espn || []);
+      setEspnPrices({});
+      setSyncDialog({ open: true, slot });
+      toast.success(d.message);
     } catch (e) { toast.error(e.response?.data?.detail || 'Sync failed'); }
     finally { setActionLoading(p => ({ ...p, [`sync_${slot}`]: false })); }
   };
 
-  const handleUnmap = (playerId) => {
-    setSyncDecisions(prev => {
-      const unmapped = new Set(prev.unmapped);
-      unmapped.add(playerId);
-      return { ...prev, unmapped };
-    });
+  // Unlink a player from the matched section → moves them to unmatched
+  const handleUnlink = (player) => {
+    setLocalMapped(prev => prev.filter(p => p.player_id !== player.player_id));
+    setUnlinkedIds(prev => new Set([...prev, player.player_id]));
+    // Add to unmatched pre-loaded list
+    setUnmatchedManual(prev => [...prev, { player_id: player.player_id, name: player.name, price: player.price, candidates: [] }]);
+    // Release the ESPN player back to the pool
+    if (player.espn_id) {
+      setEspnPool(prev => {
+        if (prev.some(ep => ep.espn_id === player.espn_id)) return prev;
+        return [...prev, { espn_id: player.espn_id, espn_name: player.espn_name, short_name: player.short_name, world_ranking: 999 }];
+      });
+    }
   };
 
-  const handleReunmap = (playerId) => {
-    setSyncDecisions(prev => {
-      const unmapped = new Set(prev.unmapped);
-      unmapped.delete(playerId);
-      return { ...prev, unmapped };
-    });
-  };
-
-  const handleManualMapping = (playerId, espnData) => {
-    setSyncDecisions(prev => ({
-      ...prev,
-      manualMappings: { ...prev.manualMappings, [playerId]: espnData }
-    }));
-  };
-
-  const handleEspnPrice = (espnId, price) => {
-    setSyncDecisions(prev => ({
-      ...prev,
-      espnAdditions: { ...prev.espnAdditions, [espnId]: price }
-    }));
-  };
-
-  const handleEspnDiscard = (espnId) => {
-    setSyncDecisions(prev => {
-      const espnDiscards = new Set(prev.espnDiscards);
-      if (espnDiscards.has(espnId)) espnDiscards.delete(espnId);
-      else espnDiscards.add(espnId);
-      return { ...prev, espnDiscards };
+  // Set/change the manual mapping for a pre-loaded player
+  const handleManualChoice = (playerId, espnData) => {
+    setManualChoices(prev => {
+      // Release previously chosen ESPN player back if there was one
+      const old = prev[playerId];
+      // (espnPool is static; availability is computed dynamically)
+      return { ...prev, [playerId]: espnData };
     });
   };
 
@@ -213,21 +215,37 @@ export default function AdminPage() {
     const slot = syncDialog.slot;
     setActionLoading(p => ({ ...p, [`confirmSync_${slot}`]: true }));
     try {
-      // Convert espn_additions: filter out empty prices and convert to int
-      const espnAdditions = {};
-      for (const [eid, priceStr] of Object.entries(syncDecisions.espnAdditions)) {
-        const price = parseInt(String(priceStr).replace(/[$,]/g, ''), 10);
-        if (price > 0) espnAdditions[eid] = price;
+      // Build manual_mappings: player_id -> espn data object | null (not in field) | omit (still unresolved)
+      const manual_mappings = {};
+      for (const [pid, choice] of Object.entries(manualChoices)) {
+        if (choice === 'removed') {
+          manual_mappings[pid] = null;
+        } else if (choice && choice.espn_id) {
+          manual_mappings[pid] = { espn_id: choice.espn_id, espn_name: choice.espn_name, short_name: choice.short_name || '' };
+        }
       }
+      // Build espn_additions: only ESPN players the admin explicitly priced
+      const espn_additions = {};
+      for (const [eid, priceStr] of Object.entries(espnPrices)) {
+        const price = parseInt(String(priceStr).replace(/[$,\s$]/g, ''), 10);
+        if (price > 0) espn_additions[eid] = price;
+      }
+      // Discards: all espnPool entries not added and not used in a manual mapping
+      const usedEspnIds = new Set([
+        ...localMapped.map(p => p.espn_id),
+        ...Object.values(manualChoices).filter(v => v && v !== 'removed').map(v => v.espn_id),
+        ...Object.keys(espn_additions),
+      ]);
+      const espn_discards = espnPool.filter(ep => !usedEspnIds.has(ep.espn_id)).map(ep => ep.espn_id);
       await axios.post(`${API}/admin/confirm-sync/${slot}?user_id=${user.id}`, {
-        manual_mappings: syncDecisions.manualMappings,
-        espn_additions: espnAdditions,
-        espn_discards: Array.from(syncDecisions.espnDiscards),
-        unmap_player_ids: Array.from(syncDecisions.unmapped),
+        manual_mappings,
+        espn_additions,
+        espn_discards,
+        unmap_player_ids: Array.from(unlinkedIds),
       });
       await fetchTournaments();
       toast.success('Sync confirmed! Golfers updated.');
-      setSyncDialog({ open: false, slot: null, data: null });
+      setSyncDialog({ open: false, slot: null });
     } catch (e) { toast.error(e.response?.data?.detail || 'Confirm failed'); }
     finally { setActionLoading(p => ({ ...p, [`confirmSync_${slot}`]: false })); }
   };
@@ -432,26 +450,28 @@ export default function AdminPage() {
   });
 
   // ── Sync dialog computed values ──
-  const syncData = syncDialog.data;
-  const autoMappedVisible = useMemo(() => {
-    if (!syncData) return [];
-    return (syncData.auto_mapped_new || []).filter(p => !syncDecisions.unmapped.has(p.player_id));
-  }, [syncData, syncDecisions.unmapped]);
+  // ESPN IDs currently claimed by matched players or manual choices
+  const usedEspnIds = useMemo(() => {
+    const s = new Set(localMapped.map(p => p.espn_id).filter(Boolean));
+    for (const v of Object.values(manualChoices)) {
+      if (v && v !== 'removed' && v.espn_id) s.add(v.espn_id);
+    }
+    return s;
+  }, [localMapped, manualChoices]);
 
-  const unmappedToManual = useMemo(() => {
-    if (!syncData) return [];
-    return (syncData.auto_mapped_new || []).filter(p => syncDecisions.unmapped.has(p.player_id));
-  }, [syncData, syncDecisions.unmapped]);
+  // ESPN players available for manual mapping dropdowns
+  const availableEspnForDropdown = useMemo(
+    () => espnPool.filter(ep => !usedEspnIds.has(ep.espn_id)),
+    [espnPool, usedEspnIds]
+  );
 
-  const pendingManualAll = useMemo(() => {
-    if (!syncData) return [];
-    return [...(syncData.pending_manual || []), ...unmappedToManual];
-  }, [syncData, unmappedToManual]);
+  // ESPN players shown in the "not in your list" section (not claimed anywhere)
+  const espnNotInList = useMemo(
+    () => espnPool.filter(ep => !usedEspnIds.has(ep.espn_id)),
+    [espnPool, usedEspnIds]
+  );
 
-  const pendingEspnVisible = useMemo(() => {
-    if (!syncData) return [];
-    return (syncData.pending_espn || []).filter(ep => !syncDecisions.espnDiscards.has(ep.espn_id));
-  }, [syncData, syncDecisions.espnDiscards]);
+  const unresolvedCount = unmatchedManual.filter(p => !manualChoices[p.player_id]).length;
 
   if (loading) return <div className="flex items-center justify-center h-[60vh]"><Loader2 className="w-8 h-8 text-[#1B4332] animate-spin" /></div>;
 
@@ -728,217 +748,174 @@ export default function AdminPage() {
       </Dialog>
 
       {/* ── ESPN Sync Dialog ── */}
-      <Dialog open={syncDialog.open} onOpenChange={(open) => { if (!open) setSyncDialog({ open: false, slot: null, data: null }); }}>
-        <DialogContent className="sm:max-w-3xl h-[90vh] flex flex-col p-0 overflow-hidden">
-          <div className="bg-gradient-to-r from-purple-700 to-purple-500 px-6 py-4">
-            <div className="flex items-center gap-2">
-              <RefreshCw className="w-5 h-5 text-white" />
-              <h2 className="font-heading font-bold text-white text-lg">ESPN Sync</h2>
+      <Dialog open={syncDialog.open} onOpenChange={(open) => { if (!open) setSyncDialog({ open: false, slot: null }); }}>
+        <DialogContent className="sm:max-w-2xl h-[90vh] flex flex-col p-0 overflow-hidden">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-purple-700 to-purple-500 px-5 py-3 flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <RefreshCw className="w-4 h-4 text-white" />
+                <h2 className="font-heading font-bold text-white">ESPN Sync</h2>
+              </div>
+              <div className="flex items-center gap-3 text-purple-200 text-xs">
+                <span><span className="font-bold text-white">{localMapped.length}</span> matched</span>
+                {unmatchedManual.length > 0 && <span className="bg-amber-400 text-amber-900 font-bold px-1.5 py-0.5 rounded">{unmatchedManual.length} unresolved</span>}
+                {espnNotInList.length > 0 && <span><span className="font-bold text-white">{espnNotInList.length}</span> ESPN-only</span>}
+              </div>
             </div>
-            {syncData && (
-              <p className="text-purple-200 text-xs mt-1">{syncData.message}</p>
-            )}
           </div>
 
-          {syncData && (
-            <Tabs defaultValue="auto" className="flex flex-col flex-1 min-h-0">
-              <TabsList className="mx-4 mt-3 flex-shrink-0">
-                <TabsTrigger value="auto" className="flex-1">
-                  Auto-Mapped ({autoMappedVisible.length + (syncData.already_mapped?.length || 0)})
-                </TabsTrigger>
-                <TabsTrigger value="manual" className="flex-1 relative">
-                  Needs Mapping ({pendingManualAll.length})
-                  {pendingManualAll.length > 0 && (
-                    <span className="ml-1 w-4 h-4 bg-amber-500 text-white rounded-full text-[9px] font-bold flex items-center justify-center">{pendingManualAll.length}</span>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger value="espn" className="flex-1">
-                  ESPN Only ({pendingEspnVisible.length})
-                </TabsTrigger>
-              </TabsList>
+          <ScrollArea className="flex-1 min-h-0">
+            <div className="p-5 space-y-6">
 
-              {/* Tab: Auto-Mapped */}
-              <TabsContent value="auto" className="flex-1 min-h-0 overflow-hidden mx-4 mb-4">
-                <ScrollArea className="h-full">
-                  <p className="text-xs text-slate-500 mb-3">These players were matched with 99%+ confidence. Use <Unlink className="w-3 h-3 inline" /> to move to manual mapping.</p>
-
-                  {/* Previously confirmed mappings */}
-                  {(syncData.already_mapped?.length || 0) > 0 && (
-                    <div className="mb-3">
-                      <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Previously Confirmed</p>
-                      <div className="space-y-1">
-                        {syncData.already_mapped.map(p => (
-                          <div key={p.player_id} className="flex items-center gap-2 bg-slate-50 rounded px-2 py-1.5 text-xs">
-                            <CheckCircle className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                            <span className="flex-1 font-medium">{p.name}</span>
-                            <span className="text-slate-400">→</span>
-                            <span className="text-blue-600">{p.espn_name}</span>
-                            <Badge className={`text-[9px] ${p.mapping_status === 'auto_mapped' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
-                              {p.mapping_status === 'auto_mapped' ? 'ESPN ✓' : 'Manual'}
-                            </Badge>
-                          </div>
-                        ))}
+              {/* ── Section 1: Auto-Matched Players ── */}
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <CheckCircle className="w-4 h-4 text-green-500" />
+                  <h3 className="font-bold text-sm text-slate-800">Auto-Matched Players ({localMapped.length})</h3>
+                  <span className="text-[10px] text-slate-400">Click unlink to move to manual mapping</span>
+                </div>
+                {localMapped.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic pl-6">No matched players yet</p>
+                ) : (
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg divide-y divide-slate-100">
+                    {localMapped.map(p => (
+                      <div key={p.player_id} className="flex items-center gap-2 px-3 py-2 text-xs">
+                        <Link className="w-3 h-3 text-green-400 flex-shrink-0" />
+                        <span className="w-44 font-medium text-slate-700 truncate">{p.name}</span>
+                        <span className="text-slate-300 flex-shrink-0">→</span>
+                        <span className="flex-1 text-green-700 font-medium truncate">{p.espn_name || p.name}</span>
+                        {p._source === 'prior' && <span className="text-[9px] text-slate-400 flex-shrink-0">prior</span>}
+                        <button
+                          onClick={() => handleUnlink(p)}
+                          title="Unlink — move to manual mapping"
+                          className="flex-shrink-0 text-slate-300 hover:text-amber-500 transition-colors p-0.5"
+                        >
+                          <Unlink className="w-3.5 h-3.5" />
+                        </button>
                       </div>
-                    </div>
-                  )}
+                    ))}
+                  </div>
+                )}
+              </div>
 
-                  {/* New auto-mapped */}
-                  {autoMappedVisible.length > 0 && (
-                    <div>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">New Auto-Matches</p>
-                      <div className="space-y-1">
-                        {autoMappedVisible.map(p => (
-                          <div key={p.player_id} className="flex items-center gap-2 bg-green-50 border border-green-100 rounded px-2 py-1.5 text-xs">
-                            <Link className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
-                            <span className="flex-1 font-medium">{p.name}</span>
-                            <span className="text-slate-400">→</span>
-                            <span className="text-green-700 font-medium">{p.espn_name}</span>
-                            <span className="text-[9px] text-green-500">{fmt(p.price)}</span>
-                            <button onClick={() => handleUnmap(p.player_id)}
-                              title="Move to manual mapping"
-                              className="text-slate-300 hover:text-amber-500 transition-colors ml-1">
-                              <Unlink className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+              {/* ── Section 2: Unmatched / Manual Mapping ── */}
+              {(unmatchedManual.length > 0 || espnNotInList.length > 0) && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <AlertCircle className="w-4 h-4 text-amber-500" />
+                    <h3 className="font-bold text-sm text-slate-800">Unmatched Players</h3>
+                  </div>
 
-                  {autoMappedVisible.length === 0 && (syncData.already_mapped?.length || 0) === 0 && (
-                    <div className="text-center py-8 text-slate-400 text-sm">No auto-mapped players yet</div>
-                  )}
-                </ScrollArea>
-              </TabsContent>
+                  {/* Pre-loaded players needing mapping */}
+                  {unmatchedManual.length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Pre-Loaded — Select ESPN Player or Remove</p>
+                      <div className="space-y-2">
+                        {unmatchedManual.map(p => {
+                          const choice = manualChoices[p.player_id];
+                          const isRemoved = choice === 'removed';
+                          const isMapped = choice && choice !== 'removed';
+                          // For the dropdown, show candidates + all available ESPN players
+                          const candidateIds = new Set((p.candidates || []).map(c => c.espn_id));
+                          const dropdownOptions = [
+                            ...(p.candidates || []).map(c => ({ ...c, isSuggested: true })),
+                            ...availableEspnForDropdown.filter(ep => !candidateIds.has(ep.espn_id) && !(isMapped && ep.espn_id === choice.espn_id)).map(ep => ({ espn_id: ep.espn_id, espn_name: ep.espn_name, short_name: ep.short_name, score: 0, isSuggested: false })),
+                            ...(isMapped ? [{ espn_id: choice.espn_id, espn_name: choice.espn_name, short_name: choice.short_name, score: 1, isSuggested: true }] : []),
+                          ].filter((ep, idx, arr) => arr.findIndex(x => x.espn_id === ep.espn_id) === idx);
 
-              {/* Tab: Needs Manual Mapping */}
-              <TabsContent value="manual" className="flex-1 min-h-0 overflow-hidden mx-4 mb-4">
-                <ScrollArea className="h-full">
-                  {pendingManualAll.length === 0 ? (
-                    <div className="text-center py-8 text-slate-400">
-                      <CheckCircle className="w-8 h-8 mx-auto mb-2 text-green-400" />
-                      <p className="text-sm">All players mapped!</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <p className="text-xs text-slate-500">For each player, select their ESPN counterpart or mark as "Not in Field".</p>
-                      {pendingManualAll.map(p => {
-                        const decided = syncDecisions.manualMappings[p.player_id];
-                        return (
-                          <div key={p.player_id} className={`border rounded-lg p-3 ${decided === null ? 'border-red-200 bg-red-50' : decided ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'}`}>
-                            <div className="flex items-center justify-between mb-2">
-                              <div>
-                                <p className="text-sm font-bold text-slate-800">{p.name}</p>
-                                <p className="text-xs text-slate-500">{fmt(p.price)}</p>
-                              </div>
-                              {decided === null && <Badge className="bg-red-100 text-red-700 text-[9px]">Not in Field</Badge>}
-                              {decided && <Badge className="bg-green-100 text-green-700 text-[9px]">Mapped → {decided.espn_name}</Badge>}
-                            </div>
-                            <div className="flex gap-2 flex-wrap">
-                              <Select
-                                value={decided ? decided.espn_id : ''}
-                                onValueChange={val => {
-                                  const candidate = (p.candidates || []).find(c => c.espn_id === val);
-                                  if (candidate) handleManualMapping(p.player_id, { espn_id: candidate.espn_id, espn_name: candidate.espn_name, short_name: candidate.short_name || '' });
-                                }}
-                              >
-                                <SelectTrigger className="h-8 flex-1 text-xs">
-                                  <SelectValue placeholder="Select ESPN player..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {(p.candidates || []).map(c => (
-                                    <SelectItem key={c.espn_id} value={c.espn_id}>
-                                      {c.espn_name} {c.score >= 0.99 ? '✓' : c.score >= 0.8 ? '~' : '?'}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                          return (
+                            <div key={p.player_id} className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs ${isRemoved ? 'border-red-200 bg-red-50 opacity-60' : isMapped ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'}`}>
+                              <span className="w-36 font-medium text-slate-700 truncate flex-shrink-0">{p.name}</span>
+                              <span className="text-slate-400 flex-shrink-0 text-[10px]">{fmt(p.price)}</span>
+                              {!isRemoved && (
+                                <Select
+                                  value={isMapped ? choice.espn_id : ''}
+                                  onValueChange={val => {
+                                    const ep = dropdownOptions.find(o => o.espn_id === val);
+                                    if (ep) handleManualChoice(p.player_id, { espn_id: ep.espn_id, espn_name: ep.espn_name, short_name: ep.short_name || '' });
+                                  }}
+                                >
+                                  <SelectTrigger className="h-7 flex-1 text-xs min-w-0">
+                                    <SelectValue placeholder="Select ESPN player…" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {dropdownOptions.map(o => (
+                                      <SelectItem key={o.espn_id} value={o.espn_id}>
+                                        {o.espn_name}{o.isSuggested && o.score >= 0.8 ? ' ✓' : ''}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                              {isRemoved && <span className="flex-1 text-red-400 italic text-[10px]">Removed from field</span>}
                               <button
-                                onClick={() => handleManualMapping(p.player_id, null)}
-                                className={`h-8 px-3 rounded text-xs font-bold border transition-colors ${decided === null ? 'bg-red-500 text-white border-red-500' : 'border-red-300 text-red-500 hover:bg-red-50'}`}
+                                onClick={() => handleManualChoice(p.player_id, isRemoved ? undefined : 'removed')}
+                                title={isRemoved ? 'Undo remove' : 'Remove from field'}
+                                className={`flex-shrink-0 p-1 rounded transition-colors ${isRemoved ? 'text-slate-400 hover:text-slate-600' : 'text-slate-300 hover:text-red-500'}`}
                               >
-                                <Ban className="w-3 h-3 inline mr-1" />Not in Field
+                                {isRemoved ? <X className="w-3.5 h-3.5" /> : <Ban className="w-3.5 h-3.5" />}
                               </button>
-                              {decided !== undefined && (
-                                <button onClick={() => {
-                                  const { [p.player_id]: _, ...rest } = syncDecisions.manualMappings;
-                                  setSyncDecisions(prev => ({ ...prev, manualMappings: rest }));
-                                }} className="h-8 px-2 rounded text-xs text-slate-400 hover:text-slate-600">
-                                  <X className="w-3 h-3" />
-                                </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ESPN players not in the manual list */}
+                  {espnNotInList.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">ESPN Players Not in Your List — Add with Price or Ignore</p>
+                      <div className="space-y-2">
+                        {espnNotInList.map(ep => {
+                          const priceStr = espnPrices[ep.espn_id] || '';
+                          const hasPrice = priceStr && parseInt(String(priceStr).replace(/[$,]/g, ''), 10) > 0;
+                          return (
+                            <div key={ep.espn_id} className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs ${hasPrice ? 'border-green-200 bg-green-50' : 'border-slate-200 bg-white'}`}>
+                              <span className="flex-1 font-medium text-slate-700 truncate">{ep.espn_name}</span>
+                              <Input
+                                value={priceStr}
+                                onChange={e => setEspnPrices(prev => ({ ...prev, [ep.espn_id]: e.target.value }))}
+                                placeholder="Price to add (e.g. 75000)"
+                                className="h-7 w-44 text-xs flex-shrink-0"
+                              />
+                              {hasPrice && (
+                                <span className="text-green-600 font-bold text-[10px] flex-shrink-0 whitespace-nowrap">Will add</span>
                               )}
                             </div>
-                            {syncDecisions.unmapped.has(p.player_id) && (
-                              <button onClick={() => handleReunmap(p.player_id)} className="text-[10px] text-purple-500 hover:text-purple-700 mt-1">
-                                ↩ Re-add to auto-mapped
-                              </button>
-                            )}
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                        <p className="text-[10px] text-slate-400 mt-1">Leave price blank to ignore a player — they won't be added to the field.</p>
+                      </div>
                     </div>
                   )}
-                </ScrollArea>
-              </TabsContent>
-
-              {/* Tab: ESPN Only */}
-              <TabsContent value="espn" className="flex-1 min-h-0 overflow-hidden mx-4 mb-4">
-                <ScrollArea className="h-full">
-                  <p className="text-xs text-slate-500 mb-3">
-                    These players are in the ESPN field but not in your manual list. Add them with a price or discard them.
-                  </p>
-                  {pendingEspnVisible.length === 0 && syncDecisions.espnDiscards.size === 0 ? (
-                    <div className="text-center py-8 text-slate-400 text-sm">No unmatched ESPN players</div>
-                  ) : (
-                    <div className="space-y-2">
-                      {pendingEspnVisible.map(ep => {
-                        const price = syncDecisions.espnAdditions[ep.espn_id] || '';
-                        const isAdded = price && parseInt(String(price).replace(/[$,]/g, ''), 10) > 0;
-                        return (
-                          <div key={ep.espn_id} className={`border rounded-lg px-3 py-2 flex items-center gap-2 text-xs ${isAdded ? 'border-green-200 bg-green-50' : 'border-slate-200 bg-white'}`}>
-                            <span className="flex-1 font-medium text-slate-700">{ep.espn_name}</span>
-                            <Input
-                              value={price}
-                              onChange={e => handleEspnPrice(ep.espn_id, e.target.value)}
-                              placeholder="Price (e.g. 75000)"
-                              className="h-7 w-36 text-xs"
-                            />
-                            {isAdded && <span className="text-green-600 font-bold text-[10px]">Will add</span>}
-                            <button
-                              onClick={() => handleEspnDiscard(ep.espn_id)}
-                              title="Discard this ESPN player"
-                              className="text-slate-300 hover:text-red-400 transition-colors"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        );
-                      })}
-                      {syncDecisions.espnDiscards.size > 0 && (
-                        <p className="text-[10px] text-slate-400 mt-2">{syncDecisions.espnDiscards.size} player(s) marked for discard</p>
-                      )}
-                    </div>
-                  )}
-                </ScrollArea>
-              </TabsContent>
-            </Tabs>
-          )}
-
-          <div className="px-4 pb-4 border-t border-slate-100 pt-3 flex-shrink-0">
-            <div className="flex items-center gap-3">
-              {pendingManualAll.length > 0 && (
-                <div className="flex items-center gap-1.5 text-xs text-amber-600">
-                  <AlertCircle className="w-3.5 h-3.5" />
-                  <span>{pendingManualAll.filter(p => syncDecisions.manualMappings[p.player_id] === undefined).length} players still unresolved</span>
                 </div>
               )}
-              <Button onClick={confirmSync}
-                disabled={actionLoading[`confirmSync_${syncDialog.slot}`]}
-                className="ml-auto bg-purple-600 text-white hover:bg-purple-700 font-bold px-6">
-                {actionLoading[`confirmSync_${syncDialog.slot}`] ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle className="w-4 h-4 mr-1" />}
-                Confirm Sync
-              </Button>
+
+              {unmatchedManual.length === 0 && espnNotInList.length === 0 && (
+                <div className="text-center py-4 text-slate-400">
+                  <CheckCircle className="w-8 h-8 mx-auto mb-2 text-green-400" />
+                  <p className="text-sm font-medium">All players matched</p>
+                </div>
+              )}
             </div>
+          </ScrollArea>
+
+          {/* Footer / Sync button */}
+          <div className="border-t border-slate-100 px-5 py-3 flex-shrink-0 flex items-center gap-3 bg-white">
+            {unresolvedCount > 0 && (
+              <div className="flex items-center gap-1.5 text-xs text-amber-600">
+                <AlertCircle className="w-3.5 h-3.5" />
+                <span>{unresolvedCount} player{unresolvedCount !== 1 ? 's' : ''} still unresolved — they'll remain in the pool</span>
+              </div>
+            )}
+            <Button onClick={confirmSync}
+              disabled={actionLoading[`confirmSync_${syncDialog.slot}`]}
+              className="ml-auto bg-purple-600 text-white hover:bg-purple-700 font-bold px-8">
+              {actionLoading[`confirmSync_${syncDialog.slot}`] ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-1" />}
+              Sync
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

@@ -63,6 +63,18 @@ class TournamentSetup(BaseModel):
 class PayoutScheduleUpdate(BaseModel):
     payout_text: str  # e.g. "1: 3600000\n2: 2160000\n..."
 
+class ManualPlayerUpload(BaseModel):
+    players_text: str
+
+class SyncMappingConfirm(BaseModel):
+    manual_mappings: Optional[Dict[str, Optional[Dict[str, Any]]]] = {}
+    espn_additions: Optional[Dict[str, int]] = {}
+    espn_discards: Optional[List[str]] = []
+    unmap_player_ids: Optional[List[str]] = []
+
+class UnmapRequest(BaseModel):
+    player_id: str
+
 # ── Payout Schedule Helpers ──
 def parse_payout_text(text: str) -> List[Dict]:
     """
@@ -202,6 +214,61 @@ def fmt_earnings(amount: float) -> str:
     """Format earnings as dollar string."""
     return f"${int(amount):,}"
 
+
+AUTO_MAP_THRESHOLD = 0.99
+
+def normalize_name(name: str) -> str:
+    """Lowercase, strip suffixes and punctuation for fuzzy matching."""
+    n = name.lower().strip()
+    n = re.sub(r"\s+(jr\.?|sr\.?|iii|ii|iv|v)\s*$", "", n)
+    n = re.sub(r"['\-\.]", "", n)
+    n = re.sub(r"\s+", " ", n).strip()
+    return n
+
+def name_match_score(name1: str, name2: str) -> float:
+    """Return 0-1 similarity between two player names."""
+    n1 = normalize_name(name1)
+    n2 = normalize_name(name2)
+    if n1 == n2:
+        return 1.0
+    parts1 = n1.split()
+    parts2 = n2.split()
+    if not parts1 or not parts2:
+        return 0.0
+    last1, last2 = parts1[-1], parts2[-1]
+    first1, first2 = parts1[0], parts2[0]
+    if last1 != last2:
+        return 0.0
+    if first1 == first2:
+        return 0.99
+    if first1 and first2 and first1[0] == first2[0]:
+        return 0.85
+    return 0.4
+
+def parse_manual_players(text: str) -> List[Dict]:
+    """Parse 'Name, Price' or 'Name\tPrice' lines. Returns list of {name, price}."""
+    lines = [l.strip() for l in text.strip().split("\n") if l.strip()]
+    players = []
+    seen: set = set()
+    for line in lines:
+        parts = re.split(r"\t|,", line, maxsplit=1)
+        if len(parts) >= 2:
+            name, price_str = parts[0].strip(), parts[1].strip()
+        else:
+            m = re.match(r"^(.+?)\s+(\$?[\d,]+)\s*$", line)
+            if m:
+                name, price_str = m.group(1).strip(), m.group(2).strip()
+            else:
+                continue
+        price_str = price_str.replace("$", "").replace(",", "").strip()
+        try:
+            price = int(float(price_str))
+        except ValueError:
+            continue
+        if name and price > 0 and name.lower() not in seen:
+            seen.add(name.lower())
+            players.append({"name": name, "price": price})
+    return players
 
 def calc_prices(golfers):
     sorted_g = sorted(golfers, key=lambda x: x.get('odds', 999))
@@ -464,7 +531,7 @@ async def admin_update_tournament(slot: int, data: TournamentSetup, user_id: str
         doc = {"id": gen_id(), "slot": slot, "name": data.name or f"Tournament {slot}",
                "espn_event_id": "", "odds_sport_key": "", "start_date": "", "end_date": "",
                "deadline": "", "golfers": [], "status": "setup", "payout_schedule": [],
-               "created_at": datetime.now(timezone.utc).isoformat()}
+               "sync_state": None, "created_at": datetime.now(timezone.utc).isoformat()}
         doc.update(updates)
         await db.tournaments.insert_one(doc)
     return await db.tournaments.find_one({"slot": slot}, {"_id": 0})
@@ -575,6 +642,221 @@ async def admin_default_prices(slot: int, user_id: str = Query(...)):
     await db.tournaments.update_one({"slot": slot}, {"$set": {"golfers": golfers, "status": "prices_set"}})
     return await db.tournaments.find_one({"slot": slot}, {"_id": 0})
 
+@api_router.post("/admin/upload-players/{slot}")
+async def admin_upload_players(slot: int, data: ManualPlayerUpload, user_id: str = Query(...)):
+    """Upload a manual player list with prices before ESPN data is available."""
+    await check_admin(user_id)
+    t = await db.tournaments.find_one({"slot": slot}, {"_id": 0})
+    if not t:
+        raise HTTPException(status_code=404, detail="Tournament not found")
+    players = parse_manual_players(data.players_text)
+    if not players:
+        raise HTTPException(status_code=400, detail="Could not parse any players. Use 'Name, Price' format per line.")
+    players.sort(key=lambda x: x["price"], reverse=True)
+    golfer_list = []
+    for i, p in enumerate(players):
+        golfer_list.append({
+            "player_id": gen_id(), "espn_id": None, "name": p["name"],
+            "espn_name": None, "short_name": None, "world_ranking": i + 1,
+            "price": p["price"], "odds": None, "mapping_status": "manual"
+        })
+    await db.tournaments.update_one(
+        {"slot": slot},
+        {"$set": {"golfers": golfer_list, "status": "manually_loaded", "sync_state": None}}
+    )
+    return await db.tournaments.find_one({"slot": slot}, {"_id": 0})
+
+@api_router.post("/admin/sync-espn/{slot}")
+async def admin_sync_espn(slot: int, user_id: str = Query(...)):
+    """Sync manually uploaded players with the ESPN field. Returns mapping results."""
+    await check_admin(user_id)
+    t = await db.tournaments.find_one({"slot": slot}, {"_id": 0})
+    if not t:
+        raise HTTPException(status_code=404, detail="Tournament not found")
+    if not t.get("golfers"):
+        raise HTTPException(status_code=400, detail="Upload players first")
+    if not t.get("espn_event_id"):
+        raise HTTPException(status_code=400, detail="Map an ESPN event first")
+    event_date = t.get("start_date", "")
+    espn_golfers, raw = await espn_get_field(t["espn_event_id"], event_date)
+    if not espn_golfers:
+        raise HTTPException(status_code=400, detail="Could not fetch ESPN field. Field may not be available yet.")
+    # ESPN IDs already confirmed from prior mapping rounds
+    confirmed_espn_ids = set()
+    for g in t["golfers"]:
+        if g.get("mapping_status") in ("auto_mapped", "manually_mapped") and g.get("espn_id"):
+            confirmed_espn_ids.add(g["espn_id"])
+    # Players still needing mapping
+    unsynced = [g for g in t["golfers"] if g.get("mapping_status") == "manual"]
+    matched_espn_ids = set(confirmed_espn_ids)
+    auto_mapped_new = []
+    pending_manual = []
+    for g in unsynced:
+        best_score, best_espn = 0.0, None
+        for eg in espn_golfers:
+            if eg["espn_id"] in matched_espn_ids:
+                continue
+            score = name_match_score(g["name"], eg["name"])
+            if score > best_score:
+                best_score, best_espn = score, eg
+        if best_score >= AUTO_MAP_THRESHOLD and best_espn:
+            matched_espn_ids.add(best_espn["espn_id"])
+            auto_mapped_new.append({
+                "player_id": g.get("player_id"), "name": g["name"], "price": g["price"],
+                "espn_id": best_espn["espn_id"], "espn_name": best_espn["name"],
+                "short_name": best_espn.get("short_name", ""), "confidence": best_score
+            })
+        else:
+            candidates = sorted(
+                [{"espn_id": eg["espn_id"], "espn_name": eg["name"],
+                  "short_name": eg.get("short_name", ""), "score": round(name_match_score(g["name"], eg["name"]), 2)}
+                 for eg in espn_golfers if eg["espn_id"] not in matched_espn_ids],
+                key=lambda x: x["score"], reverse=True
+            )[:10]
+            pending_manual.append({
+                "player_id": g.get("player_id"), "name": g["name"],
+                "price": g["price"], "candidates": candidates
+            })
+    # ESPN players not matched to any confirmed or new mapping
+    new_auto_espn_ids = {am["espn_id"] for am in auto_mapped_new}
+    pending_espn = [
+        {"espn_id": eg["espn_id"], "espn_name": eg["name"],
+         "short_name": eg.get("short_name", ""), "world_ranking": eg.get("order", 999)}
+        for eg in espn_golfers
+        if eg["espn_id"] not in matched_espn_ids and eg["espn_id"] not in new_auto_espn_ids
+    ]
+    # Already confirmed (auto_mapped/manually_mapped) from prior rounds
+    already_mapped = [
+        {"player_id": g.get("player_id"), "name": g["name"], "price": g["price"],
+         "espn_id": g.get("espn_id"), "espn_name": g.get("espn_name"),
+         "short_name": g.get("short_name"), "mapping_status": g.get("mapping_status")}
+        for g in t["golfers"]
+        if g.get("mapping_status") in ("auto_mapped", "manually_mapped") and g.get("espn_id")
+    ]
+    # Update start/end dates if ESPN returns them
+    update_data: Dict[str, Any] = {
+        "sync_state": {"auto_mapped_new": auto_mapped_new, "pending_manual": pending_manual, "pending_espn": pending_espn}
+    }
+    target_ev = next((e for e in raw.get("events", []) if str(e.get("id","")) == str(t["espn_event_id"])), None)
+    if not target_ev and raw.get("events"):
+        target_ev = raw["events"][0]
+    if target_ev:
+        update_data["start_date"] = target_ev.get("date", t.get("start_date", ""))
+        update_data["end_date"] = target_ev.get("endDate", target_ev.get("date", t.get("end_date", "")))
+    await db.tournaments.update_one({"slot": slot}, {"$set": update_data})
+    return {
+        "auto_mapped_new": auto_mapped_new, "already_mapped": already_mapped,
+        "pending_manual": pending_manual, "pending_espn": pending_espn,
+        "message": (f"Auto-mapped {len(auto_mapped_new)} new players. "
+                    f"{len(pending_manual)} need manual mapping. "
+                    f"{len(pending_espn)} ESPN players unmatched.")
+    }
+
+@api_router.post("/admin/confirm-sync/{slot}")
+async def admin_confirm_sync(slot: int, data: SyncMappingConfirm, user_id: str = Query(...)):
+    """Apply sync mapping decisions and finalize tournament golfers."""
+    await check_admin(user_id)
+    t = await db.tournaments.find_one({"slot": slot}, {"_id": 0})
+    if not t:
+        raise HTTPException(status_code=404, detail="Tournament not found")
+    golfers = t.get("golfers", [])
+    sync_state = t.get("sync_state") or {}
+    golfer_map = {g["player_id"]: dict(g) for g in golfers if g.get("player_id")}
+    # Apply auto_mapped_new from sync_state (except those being unmapped)
+    unmap_set = set(data.unmap_player_ids or [])
+    for item in sync_state.get("auto_mapped_new", []):
+        pid = item.get("player_id")
+        if pid and pid in golfer_map and pid not in unmap_set:
+            golfer_map[pid].update({
+                "espn_id": item["espn_id"], "espn_name": item["espn_name"],
+                "short_name": item.get("short_name", ""), "mapping_status": "auto_mapped"
+            })
+    # Unmap players (revert to manual)
+    for pid in unmap_set:
+        if pid in golfer_map:
+            golfer_map[pid].update({"mapping_status": "manual", "espn_id": None, "espn_name": None, "short_name": None})
+    # Apply manual mappings
+    for player_id, espn_data in (data.manual_mappings or {}).items():
+        if player_id in golfer_map:
+            if espn_data is None:
+                golfer_map[player_id].update({"mapping_status": "not_in_field", "espn_id": None, "espn_name": None})
+            else:
+                golfer_map[player_id].update({
+                    "espn_id": espn_data.get("espn_id"), "espn_name": espn_data.get("espn_name"),
+                    "short_name": espn_data.get("short_name", ""), "mapping_status": "manually_mapped"
+                })
+    # Add new ESPN players
+    pending_espn_lookup = {ep["espn_id"]: ep for ep in sync_state.get("pending_espn", [])}
+    for espn_id, price in (data.espn_additions or {}).items():
+        ep = pending_espn_lookup.get(espn_id)
+        if ep:
+            new_pid = gen_id()
+            golfer_map[new_pid] = {
+                "player_id": new_pid, "espn_id": espn_id,
+                "name": ep.get("espn_name", ""), "espn_name": ep.get("espn_name", ""),
+                "short_name": ep.get("short_name", ""), "world_ranking": 999,
+                "price": price, "odds": None, "mapping_status": "manually_mapped"
+            }
+    # Build final sorted list
+    all_g = list(golfer_map.values())
+    active = sorted([g for g in all_g if g.get("mapping_status") != "not_in_field" and g.get("price")],
+                    key=lambda x: x.get("price", 0), reverse=True)
+    not_in_field = [g for g in all_g if g.get("mapping_status") == "not_in_field"]
+    for i, g in enumerate(active):
+        g["world_ranking"] = i + 1
+    final_golfers = active + not_in_field
+    # Update sync_state to remove resolved items
+    resolved_manual = set((data.manual_mappings or {}).keys()) | unmap_set
+    resolved_espn = set(list((data.espn_additions or {}).keys()) + list((data.espn_discards or [])))
+    updated_sync_state = {
+        "auto_mapped_new": [],
+        "pending_manual": [p for p in sync_state.get("pending_manual", [])
+                           if p.get("player_id") not in resolved_manual],
+        "pending_espn": [ep for ep in sync_state.get("pending_espn", [])
+                         if ep.get("espn_id") not in resolved_espn]
+    }
+    still_pending = updated_sync_state["pending_manual"]
+    new_status = "prices_set" if not still_pending else t.get("status", "manually_loaded")
+    await db.tournaments.update_one(
+        {"slot": slot},
+        {"$set": {"golfers": final_golfers, "status": new_status, "sync_state": updated_sync_state}}
+    )
+    return await db.tournaments.find_one({"slot": slot}, {"_id": 0})
+
+@api_router.post("/admin/unmap-player/{slot}")
+async def admin_unmap_player(slot: int, data: UnmapRequest, user_id: str = Query(...)):
+    """Move a confirmed (auto/manually mapped) player back to the manual mapping pool."""
+    await check_admin(user_id)
+    t = await db.tournaments.find_one({"slot": slot}, {"_id": 0})
+    if not t:
+        raise HTTPException(status_code=404, detail="Tournament not found")
+    golfers = t.get("golfers", [])
+    target = next((g for g in golfers if g.get("player_id") == data.player_id), None)
+    if not target:
+        raise HTTPException(status_code=404, detail="Player not found")
+    if target.get("mapping_status") not in ("auto_mapped", "manually_mapped"):
+        raise HTTPException(status_code=400, detail="Player is not currently mapped")
+    released_espn_id = target.get("espn_id")
+    updated_golfers = [
+        {**g, "mapping_status": "manual", "espn_id": None, "espn_name": None, "short_name": None}
+        if g.get("player_id") == data.player_id else g
+        for g in golfers
+    ]
+    sync_state = t.get("sync_state") or {"auto_mapped_new": [], "pending_manual": [], "pending_espn": []}
+    sync_state.setdefault("pending_manual", []).append({
+        "player_id": target["player_id"], "name": target["name"], "price": target["price"], "candidates": []
+    })
+    if released_espn_id:
+        sync_state.setdefault("pending_espn", []).append({
+            "espn_id": released_espn_id, "espn_name": target.get("espn_name"),
+            "short_name": target.get("short_name"), "world_ranking": 999
+        })
+    await db.tournaments.update_one(
+        {"slot": slot},
+        {"$set": {"golfers": updated_golfers, "status": "manually_loaded", "sync_state": sync_state}}
+    )
+    return await db.tournaments.find_one({"slot": slot}, {"_id": 0})
+
 @api_router.post("/admin/payout-schedule/{slot}")
 async def admin_set_payout_schedule(slot: int, data: PayoutScheduleUpdate, user_id: str = Query(...)):
     """Upload the payout schedule for a tournament. Place 1-70, dollar amount per place."""
@@ -612,7 +894,7 @@ async def admin_reset_tournament(slot: int, user_id: str = Query(...)):
     fresh_doc = {
         "id": gen_id(), "slot": slot, "name": "", "espn_event_id": "",
         "odds_sport_key": "", "start_date": "", "end_date": "", "deadline": "",
-        "golfers": [], "status": "setup", "payout_schedule": [],
+        "golfers": [], "status": "setup", "payout_schedule": [], "sync_state": None,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.tournaments.insert_one(fresh_doc)
@@ -791,7 +1073,7 @@ async def get_leaderboard(tournament_id: str):
 
     cache = await db.score_cache.find_one({"tournament_id": tournament_id}, {"_id": 0})
 
-    if t.get("espn_event_id") and t.get("status") not in ("setup", "golfers_loaded"):
+    if t.get("espn_event_id") and t.get("status") not in ("setup", "golfers_loaded", "manually_loaded"):
         should_refresh = not cache
         if cache:
             try:

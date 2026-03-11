@@ -26,8 +26,20 @@ create table if not exists public.tournaments (
   deadline text not null default '',
   golfers jsonb not null default '[]'::jsonb,
   status text not null default 'setup',
+  payout_schedule jsonb not null default '[]'::jsonb,
+  sync_state jsonb default null,
   created_at timestamptz not null default now()
 );
+
+-- Migration: add columns if they don't exist (safe to run multiple times)
+do $$ begin
+  if not exists (select 1 from information_schema.columns where table_name='tournaments' and column_name='payout_schedule') then
+    alter table public.tournaments add column payout_schedule jsonb not null default '[]'::jsonb;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_name='tournaments' and column_name='sync_state') then
+    alter table public.tournaments add column sync_state jsonb default null;
+  end if;
+end $$;
 
 create table if not exists public.teams (
   id text primary key,

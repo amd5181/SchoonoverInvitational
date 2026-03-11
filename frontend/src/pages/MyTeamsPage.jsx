@@ -59,16 +59,25 @@ export default function MyTeamsPage() {
   // Golfer map with ranks computed by price (most expensive = #1)
   const golferMap = useMemo(() => {
     if (!tournament?.golfers) return {};
-    const sorted = [...tournament.golfers].filter(g => g.price).sort((a, b) => (b.price || 0) - (a.price || 0));
+    const sorted = [...tournament.golfers].filter(g => g.price && g.mapping_status !== 'not_in_field').sort((a, b) => (b.price || 0) - (a.price || 0));
     const map = {};
     sorted.forEach((g, i) => { map[g.name] = { ...g, world_ranking: i + 1 }; });
-    tournament.golfers.filter(g => !g.price).forEach(g => { if (!map[g.name]) map[g.name] = { ...g }; });
+    tournament.golfers.filter(g => !g.price && g.mapping_status !== 'not_in_field').forEach(g => { if (!map[g.name]) map[g.name] = { ...g }; });
     return map;
+  }, [tournament]);
+
+  // Set of player names that are "not in field"
+  const notInFieldNames = useMemo(() => {
+    const s = new Set();
+    (tournament?.golfers || []).forEach(g => {
+      if (g.mapping_status === 'not_in_field') s.add(g.name?.toLowerCase());
+    });
+    return s;
   }, [tournament]);
 
   const golfers = useMemo(() => {
     if (!tournament?.golfers) return [];
-    let list = tournament.golfers.filter(g => g.price);
+    let list = tournament.golfers.filter(g => g.price && g.mapping_status !== 'not_in_field');
     if (search) list = list.filter(g => g.name.toLowerCase().includes(search.toLowerCase()));
     return list.sort((a, b) => (b.price || 0) - (a.price || 0));
   }, [tournament, search]);
@@ -202,7 +211,7 @@ export default function MyTeamsPage() {
         <PaymentBanner compact={true} />
       </div>
 
-      {!tournament || !tournament.golfers?.some(g => g.price) ? (
+      {!tournament || !tournament.golfers?.some(g => g.price && g.mapping_status !== 'not_in_field') ? (
         <div className="bg-white rounded-xl border border-slate-200 p-8 text-center" data-testid="no-golfers-message">
           <p className="text-slate-400 text-lg font-medium">Golfers Not Available</p>
           <p className="text-slate-400 text-sm mt-1">Please come back later when the field and prices have been set.</p>
@@ -240,21 +249,27 @@ export default function MyTeamsPage() {
               </div>
 
               <div className="divide-y divide-slate-50">
-                {currentTeam.map((g, i) => (
-                  <div key={i} className="flex items-center px-4 py-3 min-h-[52px]" data-testid={`team-${activeTeam}-slot-${i}`}>
-                    <span className="w-6 text-sm font-bold text-slate-400 font-numbers">{i + 1}</span>
-                    {g ? (
-                      <>
-                        <span className="w-10 text-xs font-bold text-slate-500 font-numbers">#{golferMap[g.name]?.world_ranking || '?'}</span>
-                        <span className="flex-1 text-sm font-medium text-[#0F172A] truncate">{g.name}</span>
-                        <span className="text-xs font-bold font-numbers text-[#2D6A4F] ml-2 mr-3">{fmt(g.price)}</span>
-                        {!locked && <button onClick={() => removeGolfer(i)} className="text-red-400 hover:text-red-600" data-testid={`remove-golfer-${activeTeam}-${i}`}><Minus className="w-4 h-4" /></button>}
-                      </>
-                    ) : (
-                      <span className="flex-1 text-sm text-slate-300 italic">Empty slot</span>
-                    )}
-                  </div>
-                ))}
+                {currentTeam.map((g, i) => {
+                  const nif = g && notInFieldNames.has(g.name?.toLowerCase());
+                  return (
+                    <div key={i} className={`flex items-center px-4 py-3 min-h-[52px] ${nif ? 'bg-red-50' : ''}`} data-testid={`team-${activeTeam}-slot-${i}`}>
+                      <span className="w-6 text-sm font-bold text-slate-400 font-numbers">{i + 1}</span>
+                      {g ? (
+                        <>
+                          <span className="w-10 text-xs font-bold text-slate-500 font-numbers">#{golferMap[g.name]?.world_ranking || '?'}</span>
+                          <div className="flex-1 min-w-0 mr-2">
+                            <span className={`text-sm font-medium block truncate ${nif ? 'font-bold text-red-600' : 'text-[#0F172A]'}`}>{g.name}</span>
+                            {nif && <span className="text-[10px] font-bold text-red-500">Not in field</span>}
+                          </div>
+                          <span className="text-xs font-bold font-numbers text-[#2D6A4F] mr-3">{fmt(g.price)}</span>
+                          {!locked && <button onClick={() => removeGolfer(i)} className="text-red-400 hover:text-red-600 flex-shrink-0" data-testid={`remove-golfer-${activeTeam}-${i}`}><Minus className="w-4 h-4" /></button>}
+                        </>
+                      ) : (
+                        <span className="flex-1 text-sm text-slate-300 italic">Empty slot</span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Budget bar with save button */}

@@ -211,16 +211,16 @@ export default function HomePage() {
       </div>
 
       {/* How to Win */}
-      <div className="mb-6 bg-white/70 border border-[#1B4332]/15 rounded-xl p-5">
+      <div className="mb-6 bg-white border border-[#1B4332]/40 rounded-xl p-5 shadow-sm">
         <div className="flex items-center gap-2 mb-3">
-          <Trophy className="w-5 h-5 text-[#1B4332]/70" />
-          <h2 className="font-heading font-bold text-sm text-[#1B4332]/80 uppercase tracking-wider">How to Win</h2>
+          <Trophy className="w-5 h-5 text-[#1B4332]" />
+          <h2 className="font-heading font-bold text-sm text-[#1B4332] uppercase tracking-wider">How to Win</h2>
         </div>
-        <ul className="space-y-2 text-sm text-slate-500">
-          <li className="flex items-start gap-2"><span className="text-[#2D6A4F] font-bold mt-0.5">1.</span>Build up to 2 teams of 5 golfers within a $1,000,000 salary cap</li>
-          <li className="flex items-start gap-2"><span className="text-[#2D6A4F] font-bold mt-0.5">2.</span>Each golfer earns prize money based on their current Masters finish</li>
-          <li className="flex items-start gap-2"><span className="text-[#2D6A4F] font-bold mt-0.5">3.</span>Your team's total = the sum of all 5 golfers' earnings</li>
-          <li className="flex items-start gap-2"><span className="text-[#2D6A4F] font-bold mt-0.5">4.</span>Highest total earnings wins</li>
+        <ul className="space-y-2 text-sm text-slate-700">
+          <li className="flex items-start gap-2"><span className="text-[#1B4332] font-bold mt-0.5">1.</span>Build up to 2 teams of 5 golfers within a $1,000,000 salary cap</li>
+          <li className="flex items-start gap-2"><span className="text-[#1B4332] font-bold mt-0.5">2.</span>Each golfer earns prize money based on their current Masters finish</li>
+          <li className="flex items-start gap-2"><span className="text-[#1B4332] font-bold mt-0.5">3.</span>Your team's total = the sum of all 5 golfers' earnings</li>
+          <li className="flex items-start gap-2"><span className="text-[#1B4332] font-bold mt-0.5">4.</span>Highest total earnings wins</li>
         </ul>
       </div>
 

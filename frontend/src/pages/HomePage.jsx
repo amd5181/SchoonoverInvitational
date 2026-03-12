@@ -2,9 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { API } from '../App';
-import { Calendar, Users, Clock, ChevronRight, Loader2, ExternalLink, Newspaper, MapPin } from 'lucide-react';
+import { Calendar, Users, Clock, ChevronRight, Loader2, ExternalLink, Newspaper, MapPin, Trophy } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
-import PaymentBanner from '../components/PaymentBanner';
 
 function formatDate(dateStr) {
   if (!dateStr) return 'TBD';
@@ -211,8 +210,18 @@ export default function HomePage() {
         </div>
       </div>
 
-      <div className="mb-6">
-        <PaymentBanner />
+      {/* How to Win */}
+      <div className="mb-6 bg-white/70 border border-[#1B4332]/15 rounded-xl p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <Trophy className="w-5 h-5 text-[#1B4332]/70" />
+          <h2 className="font-heading font-bold text-sm text-[#1B4332]/80 uppercase tracking-wider">How to Win</h2>
+        </div>
+        <ul className="space-y-2 text-sm text-slate-500">
+          <li className="flex items-start gap-2"><span className="text-[#2D6A4F] font-bold mt-0.5">1.</span>Build up to 2 teams of 5 golfers within a $1,000,000 salary cap</li>
+          <li className="flex items-start gap-2"><span className="text-[#2D6A4F] font-bold mt-0.5">2.</span>Each golfer earns prize money based on their current Masters finish</li>
+          <li className="flex items-start gap-2"><span className="text-[#2D6A4F] font-bold mt-0.5">3.</span>Your team's total = the sum of all 5 golfers' earnings</li>
+          <li className="flex items-start gap-2"><span className="text-[#2D6A4F] font-bold mt-0.5">4.</span>Highest total earnings wins</li>
+        </ul>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

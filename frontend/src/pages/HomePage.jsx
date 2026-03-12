@@ -145,9 +145,9 @@ export default function HomePage() {
         </video>
 
         {/* Left-heavy gradient overlay for text legibility, fades to more transparent on the right */}
-        <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/60 to-black/25" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/65 via-black/40 to-black/10" />
         {/* Bottom fade for the info row */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent" />
 
         <div className="relative px-6 py-10 md:px-10 md:py-14 max-w-xl">
           <div className="flex flex-wrap items-center gap-3 mb-2">

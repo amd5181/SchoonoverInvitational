@@ -79,7 +79,6 @@ export default function AuthModal({ open, onClose, onSuccess }) {
                   onKeyDown={e => e.key === 'Enter' && handleEmailSubmit()}
                   placeholder="john@example.com"
                   className="h-11 bg-slate-50 border-slate-200"
-                  autoFocus
                 />
               </div>
               <Button onClick={handleEmailSubmit} disabled={loading}
@@ -104,7 +103,6 @@ export default function AuthModal({ open, onClose, onSuccess }) {
                   onKeyDown={e => e.key === 'Enter' && handleRegister()}
                   placeholder="John Smith"
                   className="h-11 bg-slate-50 border-slate-200"
-                  autoFocus
                 />
               </div>
               <Button onClick={handleRegister} disabled={loading}

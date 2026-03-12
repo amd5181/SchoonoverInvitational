@@ -71,9 +71,9 @@ export default function RulesPage() {
         </div>
         <ul className="space-y-2 text-sm text-slate-200">
           <li className="flex items-start gap-2"><span className="text-[#CCFF00] font-bold mt-0.5">1.</span>Build up to 2 teams of 5 golfers within a $1,000,000 salary cap</li>
-          <li className="flex items-start gap-2"><span className="text-[#CCFF00] font-bold mt-0.5">2.</span>Each golfer earns projected prize money based on their current Masters finish</li>
+          <li className="flex items-start gap-2"><span className="text-[#CCFF00] font-bold mt-0.5">2.</span>Each golfer earns prize money based on their current Masters finish</li>
           <li className="flex items-start gap-2"><span className="text-[#CCFF00] font-bold mt-0.5">3.</span>Your team's total = the sum of all 5 golfers' earnings</li>
-          <li className="flex items-start gap-2"><span className="text-[#CCFF00] font-bold mt-0.5">4.</span>Highest total projected earnings wins</li>
+          <li className="flex items-start gap-2"><span className="text-[#CCFF00] font-bold mt-0.5">4.</span>Highest total earnings wins</li>
         </ul>
       </div>
     </div>

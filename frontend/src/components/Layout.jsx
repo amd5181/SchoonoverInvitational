@@ -85,8 +85,8 @@ export default function Layout() {
             </nav>
           </div>
 
-          {/* Mobile (below lg): full-width, evenly spaced, icon + label stacked (ESPN-style) */}
-          <nav className="flex lg:hidden items-center w-full h-full">
+          {/* Mobile (below lg): full-width, evenly spaced, icon + label stacked */}
+          <nav className="flex lg:hidden items-center w-full h-full px-1 gap-0.5">
             {allItems.map(item => {
               const active = location.pathname === item.path;
               return (
@@ -94,8 +94,8 @@ export default function Layout() {
                   key={item.path}
                   data-testid={`nav-${item.label.toLowerCase().replace(/\s/g, '-')}`}
                   onClick={() => navigate(item.path)}
-                  className={`flex flex-col items-center justify-center flex-1 h-full gap-0.5 transition-all ${
-                    active ? 'text-[#1B4332]' : 'text-slate-400 hover:text-slate-600'
+                  className={`flex flex-col items-center justify-center flex-1 py-1.5 gap-0.5 rounded-lg transition-all ${
+                    active ? 'bg-[#1B4332] text-white' : 'text-slate-400 hover:text-slate-600'
                   }`}
                 >
                   <item.icon className={`w-5 h-5 ${active ? 'stroke-[2.5]' : ''}`} />
@@ -108,7 +108,7 @@ export default function Layout() {
               <button
                 data-testid="nav-profile"
                 onClick={() => setProfileOpen(true)}
-                className="flex flex-col items-center justify-center flex-1 h-full gap-0.5 text-slate-400 hover:text-slate-600 transition-all"
+                className="flex flex-col items-center justify-center flex-1 py-1.5 gap-0.5 rounded-lg text-slate-400 hover:text-slate-600 transition-all"
               >
                 <UserCog className="w-5 h-5" />
                 <span className="text-[9px] font-medium leading-tight">{user.name?.split(' ')[0]}</span>
@@ -117,7 +117,7 @@ export default function Layout() {
               <button
                 data-testid="nav-signin"
                 onClick={() => setAuthOpen(true)}
-                className="flex flex-col items-center justify-center flex-1 h-full gap-0.5 text-[#1B4332] transition-all"
+                className="flex flex-col items-center justify-center flex-1 py-1.5 gap-0.5 rounded-lg bg-[#1B4332] text-white transition-all"
               >
                 <LogIn className="w-5 h-5" />
                 <span className="text-[9px] font-medium leading-tight">Sign In</span>

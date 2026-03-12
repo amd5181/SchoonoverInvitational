@@ -117,7 +117,7 @@ export default function Layout() {
               <button
                 data-testid="nav-signin"
                 onClick={() => setAuthOpen(true)}
-                className="flex flex-col items-center justify-center flex-1 py-1.5 gap-0.5 rounded-lg bg-[#1B4332] text-white transition-all"
+                className="flex flex-col items-center justify-center flex-1 py-1.5 gap-0.5 rounded-lg text-[#1B4332] transition-all"
               >
                 <LogIn className="w-5 h-5" />
                 <span className="text-[9px] font-medium leading-tight">Sign In</span>

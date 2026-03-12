@@ -54,7 +54,7 @@ export default function AuthModal({ open, onClose, onSuccess }) {
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose(); }}>
-      <DialogContent className="sm:max-w-sm p-0 overflow-hidden rounded-2xl">
+      <DialogContent className="sm:max-w-sm p-0 overflow-hidden rounded-2xl" onOpenAutoFocus={(e) => e.preventDefault()}>
         {/* Header */}
         <div className="bg-gradient-to-br from-[#1B4332] to-[#081C15] px-6 pt-6 pb-5 text-center">
           <img

@@ -407,7 +407,12 @@ async def espn_get_field(event_id, event_date=None):
                 'is_cut': is_cut,
                 'is_wd': is_wd,
                 'status': c.get('status', {}).get('type', {}).get('name', '') if isinstance(c.get('status'), dict) else '',
-                'thru': str(c.get('status', {}).get('thru', '')) if isinstance(c.get('status'), dict) else ''
+                'thru': (lambda raw: (
+                    'F' if raw == 18 else
+                    'F' if raw == 0 and ('COMPLETE' in status_name.upper() or 'FINISH' in status_name.upper()) else
+                    '' if raw == 0 else
+                    str(raw)
+                ))(c.get('status', {}).get('thru', '') if isinstance(c.get('status'), dict) else '')
             })
         if golfers:
             round_counts = {}

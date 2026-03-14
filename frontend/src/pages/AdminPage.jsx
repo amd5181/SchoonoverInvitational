@@ -671,7 +671,7 @@ export default function AdminPage() {
                   />
                   {t.deadline && (
                     <Button size="sm" variant="ghost" className="h-9 px-2 text-slate-400 hover:text-red-500"
-                      onClick={() => { updateTournament(t.slot, { deadline: null }); toast.success('Deadline cleared'); }}
+                      onClick={() => { updateTournament(t.slot, { deadline: '' }); toast.success('Deadline cleared'); }}
                       title="Clear deadline">
                       <X className="w-4 h-4" />
                     </Button>

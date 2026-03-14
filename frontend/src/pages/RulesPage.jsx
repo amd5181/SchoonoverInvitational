@@ -32,7 +32,7 @@ export default function RulesPage() {
             </div>
           </div>
           <p className="text-xs text-slate-400 border-t border-slate-100 pt-3">
-            ★ Any golfer who misses the cut earns a flat <strong className="text-slate-600">$10,000</strong> regardless of position. Players who withdraw (WD) or are disqualified (DQ) earn $0.
+            ★ Any golfer who misses the cut earns a flat <strong className="text-slate-600">$10,000</strong> regardless of position. Players who withdraw (WD) after completing both cut rounds also earn <strong className="text-slate-600">$10,000</strong>. Players who withdraw before completing 2 rounds, or are disqualified (DQ), earn $0.
           </p>
         </div>
       </div>

@@ -423,28 +423,21 @@ async def espn_get_field(event_id, event_date=None):
             STANDARD_ROUNDS = 4
             effective_max = min(max_rounds, STANDARD_ROUNDS)
 
-            # WD heuristic: ESPN pre-allocates 4 linescore slots for every active player.
-            # A player who withdrew has their slots trimmed (total_ls < STANDARD_ROUNDS).
-            # We use total_ls < STANDARD_ROUNDS as the WD signal rather than round counts,
-            # so players who simply haven't teed off in the current round are not flagged.
+            # WD / CUT detection via total_ls:
+            # ESPN pre-allocates 4 linescore slots for every active player from day one.
+            # Players who are out of the tournament (WD, CUT, DQ) have their slots trimmed
+            # to only the rounds they played (total_ls < STANDARD_ROUNDS).
+            # This is reliable mid-tournament regardless of how many rounds have been played.
+            #   - real_rounds < 2  → withdrew before completing 2 rounds → WD
+            #   - real_rounds >= 2 → completed cut rounds but didn't advance → CUT
             for g in golfers:
                 real_rounds = len(g['rounds'])
                 total_ls = g.get('total_linescores', real_rounds)
                 is_active = 'PROGRESS' in str(g.get('status', '')).upper()
-                if (not g.get('is_cut') and not g.get('is_wd') and
-                        not is_active and
-                        real_rounds >= 1 and
-                        total_ls < STANDARD_ROUNDS and
-                        real_rounds < effective_max):
-                    g['is_wd'] = True
-
-            # CUT detection: only flag players with fewer rounds than the majority of the
-            # field. This prevents falsely cutting players who simply haven't teed off yet
-            # in the current round. Majority = more than half the field is at effective_max.
-            majority_at_max = round_counts.get(effective_max, 0) > len(golfers) / 2
-            if effective_max >= 3 and majority_at_max:
-                for g in golfers:
-                    if len(g['rounds']) < effective_max and not g.get('is_wd'):
+                if not g.get('is_cut') and not g.get('is_wd') and not is_active and total_ls < STANDARD_ROUNDS:
+                    if real_rounds < 2:
+                        g['is_wd'] = True
+                    else:
                         g['is_cut'] = True
         return golfers, data
     except Exception as e:

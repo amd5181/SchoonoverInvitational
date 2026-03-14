@@ -556,7 +556,7 @@ export default function AdminPage() {
                       </SelectContent>
                     </Select>
                   ) : (
-                    <Input data-testid={`espn-id-${t.slot}`} defaultValue={t.espn_event_id || ''}
+                    <Input key={`espn-id-${t.id}`} data-testid={`espn-id-${t.slot}`} defaultValue={t.espn_event_id || ''}
                       onBlur={e => updateTournament(t.slot, { espn_event_id: e.target.value })}
                       placeholder="Search ESPN events above first" className="h-9 flex-1" />
                   )}

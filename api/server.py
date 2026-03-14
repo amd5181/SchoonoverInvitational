@@ -423,9 +423,11 @@ async def espn_get_field(event_id, event_date=None):
             STANDARD_ROUNDS = 4
             effective_max = min(max_rounds, STANDARD_ROUNDS)
 
-            # WD detection: ESPN allocates exactly 4 linescore slots for players who made
-            # the cut. A WD player has total_linescores==4 but fewer than 4 real rounds
-            # (rounds with value > 0). Playoff players get total_ls > 4, so they're safe.
+            # WD detection: ESPN pre-allocates 4 linescore slots for every player from the
+            # start. A WD player has total_linescores==4 but fewer real rounds than the
+            # current maximum (effective_max). We compare against effective_max rather than
+            # STANDARD_ROUNDS so mid-tournament players (e.g. 2 of 4 rounds played) are not
+            # incorrectly flagged. Playoff players get total_ls > 4, so they're safe.
             for g in golfers:
                 real_rounds = len(g['rounds'])
                 total_ls = g.get('total_linescores', real_rounds)
@@ -434,7 +436,7 @@ async def espn_get_field(event_id, event_date=None):
                         not is_active and
                         real_rounds >= 1 and
                         total_ls == STANDARD_ROUNDS and
-                        real_rounds < STANDARD_ROUNDS):
+                        real_rounds < effective_max):
                     g['is_wd'] = True
 
             # CUT detection: players with fewer real rounds once round 3+ is in play.

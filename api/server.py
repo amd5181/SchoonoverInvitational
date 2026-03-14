@@ -126,14 +126,17 @@ def build_payout_map(payout_schedule: List[Dict]) -> Dict[int, int]:
     return {p["place"]: p["amount"] for p in payout_schedule}
 
 def calc_earnings_for_position(pos_str: str, payout_map: Dict[int, int],
-                                scores_list: list, is_cut: bool, is_wd: bool = False) -> float:
+                                scores_list: list, is_cut: bool, is_wd: bool = False,
+                                wd_rounds: int = 0) -> float:
     """
     Calculate projected earnings for a golfer.
-    - CUT players: flat CUT_EARNINGS; WD players: $0
+    - CUT players: flat CUT_EARNINGS
+    - WD after completing 2+ rounds: flat CUT_EARNINGS (completed cut rounds)
+    - WD before completing 2 rounds: $0
     - Tied players: sum payouts for all tied positions, split evenly
     """
     if is_wd:
-        return 0.0
+        return float(CUT_EARNINGS) if wd_rounds >= 2 else 0.0
     if is_cut:
         return float(CUT_EARNINGS)
     if not pos_str or pos_str in ('-', '', 'WD', 'DQ', 'MDF'):
@@ -1202,7 +1205,8 @@ async def get_leaderboard(tournament_id: str):
                     payout_map,
                     scores,
                     sd.get("is_cut", False),
-                    sd.get("is_wd", False)
+                    sd.get("is_wd", False),
+                    len(sd.get("rounds", []))
                 )
                 total_earnings += earnings
                 gd.append({

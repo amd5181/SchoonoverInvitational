@@ -535,7 +535,7 @@ export default function AdminPage() {
             <div className="p-4 space-y-3">
               <div>
                 <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">Tournament Name</label>
-                <Input data-testid={`slot-name-${t.slot}`} defaultValue={t.name}
+                <Input key={`name-${t.id}`} data-testid={`slot-name-${t.slot}`} defaultValue={t.name}
                   onBlur={e => { if (e.target.value !== t.name) updateTournament(t.slot, { name: e.target.value }); }}
                   placeholder="e.g., Masters 2026" className="h-9" />
               </div>
@@ -651,22 +651,32 @@ export default function AdminPage() {
                 <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">
                   <Calendar className="w-3 h-3 inline mr-1" />Entry Deadline
                 </label>
-                <Input
-                  type="datetime-local"
-                  data-testid={`deadline-${t.slot}`}
-                  defaultValue={toEasternInputValue(t.deadline)}
-                  onBlur={e => {
-                    const val = e.target.value;
-                    if (val) {
-                      const isoDate = easternInputToISO(val);
-                      if (isoDate !== t.deadline) {
-                        updateTournament(t.slot, { deadline: isoDate });
-                        toast.success('Deadline updated');
+                <div className="flex items-center gap-2">
+                  <Input
+                    key={`deadline-${t.id}-${t.deadline}`}
+                    type="datetime-local"
+                    data-testid={`deadline-${t.slot}`}
+                    defaultValue={toEasternInputValue(t.deadline)}
+                    onBlur={e => {
+                      const val = e.target.value;
+                      if (val) {
+                        const isoDate = easternInputToISO(val);
+                        if (isoDate !== t.deadline) {
+                          updateTournament(t.slot, { deadline: isoDate });
+                          toast.success('Deadline updated');
+                        }
                       }
-                    }
-                  }}
-                  className="h-9 max-w-xs"
-                />
+                    }}
+                    className="h-9 max-w-xs"
+                  />
+                  {t.deadline && (
+                    <Button size="sm" variant="ghost" className="h-9 px-2 text-slate-400 hover:text-red-500"
+                      onClick={() => { updateTournament(t.slot, { deadline: null }); toast.success('Deadline cleared'); }}
+                      title="Clear deadline">
+                      <X className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
                 {t.deadline && (
                   <p className="text-xs text-slate-400 mt-1">
                     Current: {new Date(t.deadline).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })} ET

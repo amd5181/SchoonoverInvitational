@@ -129,10 +129,12 @@ def calc_earnings_for_position(pos_str: str, payout_map: Dict[int, int],
                                 scores_list: list, is_cut: bool, is_wd: bool = False) -> float:
     """
     Calculate projected earnings for a golfer.
-    - CUT/WD players: flat CUT_EARNINGS
+    - CUT players: flat CUT_EARNINGS; WD players: $0
     - Tied players: sum payouts for all tied positions, split evenly
     """
-    if is_cut or is_wd:
+    if is_wd:
+        return 0.0
+    if is_cut:
         return float(CUT_EARNINGS)
     if not pos_str or pos_str in ('-', '', 'WD', 'DQ', 'MDF'):
         return 0.0

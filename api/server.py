@@ -423,21 +423,20 @@ async def espn_get_field(event_id, event_date=None):
             STANDARD_ROUNDS = 4
             effective_max = min(max_rounds, STANDARD_ROUNDS)
 
-            # WD heuristic: only applies post-tournament (effective_max == STANDARD_ROUNDS).
-            # During an active tournament some players start rounds before others, so using
-            # round counts as a WD signal produces false positives. Mid-tournament WDs are
-            # caught by the text-based detection above (ESPN status / linescore displayValue).
-            if effective_max == STANDARD_ROUNDS:
-                for g in golfers:
-                    real_rounds = len(g['rounds'])
-                    total_ls = g.get('total_linescores', real_rounds)
-                    is_active = 'PROGRESS' in str(g.get('status', '')).upper()
-                    if (not g.get('is_cut') and not g.get('is_wd') and
-                            not is_active and
-                            real_rounds >= 1 and
-                            total_ls == STANDARD_ROUNDS and
-                            real_rounds < STANDARD_ROUNDS):
-                        g['is_wd'] = True
+            # WD heuristic: ESPN pre-allocates 4 linescore slots for every active player.
+            # A player who withdrew has their slots trimmed (total_ls < STANDARD_ROUNDS).
+            # We use total_ls < STANDARD_ROUNDS as the WD signal rather than round counts,
+            # so players who simply haven't teed off in the current round are not flagged.
+            for g in golfers:
+                real_rounds = len(g['rounds'])
+                total_ls = g.get('total_linescores', real_rounds)
+                is_active = 'PROGRESS' in str(g.get('status', '')).upper()
+                if (not g.get('is_cut') and not g.get('is_wd') and
+                        not is_active and
+                        real_rounds >= 1 and
+                        total_ls < STANDARD_ROUNDS and
+                        real_rounds < effective_max):
+                    g['is_wd'] = True
 
             # CUT detection: only flag players with fewer rounds than the majority of the
             # field. This prevents falsely cutting players who simply haven't teed off yet

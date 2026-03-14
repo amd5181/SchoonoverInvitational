@@ -423,25 +423,27 @@ async def espn_get_field(event_id, event_date=None):
             STANDARD_ROUNDS = 4
             effective_max = min(max_rounds, STANDARD_ROUNDS)
 
-            # WD detection: ESPN pre-allocates 4 linescore slots for every player from the
-            # start. A WD player has total_linescores==4 but fewer real rounds than the
-            # current maximum (effective_max). We compare against effective_max rather than
-            # STANDARD_ROUNDS so mid-tournament players (e.g. 2 of 4 rounds played) are not
-            # incorrectly flagged. Playoff players get total_ls > 4, so they're safe.
-            for g in golfers:
-                real_rounds = len(g['rounds'])
-                total_ls = g.get('total_linescores', real_rounds)
-                is_active = 'PROGRESS' in str(g.get('status', '')).upper()
-                if (not g.get('is_cut') and not g.get('is_wd') and
-                        not is_active and
-                        real_rounds >= 1 and
-                        total_ls == STANDARD_ROUNDS and
-                        real_rounds < effective_max):
-                    g['is_wd'] = True
+            # WD heuristic: only applies post-tournament (effective_max == STANDARD_ROUNDS).
+            # During an active tournament some players start rounds before others, so using
+            # round counts as a WD signal produces false positives. Mid-tournament WDs are
+            # caught by the text-based detection above (ESPN status / linescore displayValue).
+            if effective_max == STANDARD_ROUNDS:
+                for g in golfers:
+                    real_rounds = len(g['rounds'])
+                    total_ls = g.get('total_linescores', real_rounds)
+                    is_active = 'PROGRESS' in str(g.get('status', '')).upper()
+                    if (not g.get('is_cut') and not g.get('is_wd') and
+                            not is_active and
+                            real_rounds >= 1 and
+                            total_ls == STANDARD_ROUNDS and
+                            real_rounds < STANDARD_ROUNDS):
+                        g['is_wd'] = True
 
-            # CUT detection: players with fewer real rounds once round 3+ is in play.
-            # Use effective_max (capped at 4) so playoff rounds don't flag normal finishers.
-            if effective_max >= 3:
+            # CUT detection: only flag players with fewer rounds than the majority of the
+            # field. This prevents falsely cutting players who simply haven't teed off yet
+            # in the current round. Majority = more than half the field is at effective_max.
+            majority_at_max = round_counts.get(effective_max, 0) > len(golfers) / 2
+            if effective_max >= 3 and majority_at_max:
                 for g in golfers:
                     if len(g['rounds']) < effective_max and not g.get('is_wd'):
                         g['is_cut'] = True

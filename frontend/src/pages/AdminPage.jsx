@@ -580,7 +580,7 @@ export default function AdminPage() {
                     data-testid={`upload-players-${t.slot}`}>
                     <Upload className="w-4 h-4 mr-1" />Upload Players &amp; Prices
                   </Button>
-                  {(t.status === 'manually_loaded' || t.status === 'prices_set') && t.espn_event_id && (
+                  {(t.status === 'manually_loaded' || t.status === 'prices_set') && t.espn_event_id && t.golfers?.some(g => g.mapping_status === 'manual') && (
                     <Button onClick={() => syncEspn(t.slot)} disabled={actionLoading[`sync_${t.slot}`]}
                       className="h-9 bg-purple-600 text-white hover:bg-purple-700"
                       data-testid={`sync-espn-${t.slot}`}>

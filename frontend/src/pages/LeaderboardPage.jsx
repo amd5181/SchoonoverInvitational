@@ -144,12 +144,12 @@ export default function LeaderboardPage() {
         <div className={`divide-y divide-white/5 ${expandedStandings ? 'max-h-[500px] overflow-y-auto' : ''}`}>
           {displayScores.length === 0 && <div className="p-4 text-center text-xs text-white/50">No scores available</div>}
           {displayScores.map((g, i) => (
-            <div key={i} className="flex items-center px-4 py-2 gap-2">
-              <span className={`w-7 font-numbers font-bold text-xs flex-shrink-0 ${i < 3 ? 'text-[#CCFF00]' : 'text-white/50'}`}>{g.position || i + 1}</span>
-              <span className="flex-1 text-sm font-medium text-white truncate">{g.name}</span>
+            <div key={i} className="flex items-center px-3 py-2 gap-1.5">
+              <span className={`w-6 font-numbers font-bold text-[10px] flex-shrink-0 ${i < 3 ? 'text-[#CCFF00]' : 'text-white/50'}`}>{g.position || i + 1}</span>
+              <span className="flex-1 text-xs font-medium text-white truncate">{g.name}</span>
               <div className="flex items-center gap-1 flex-shrink-0">
                 <span className="w-6 text-[9px] font-bold text-green-400 text-right">{g.is_active ? 'LIVE' : ''}</span>
-                <span className={`w-9 text-right font-numbers font-bold text-sm ${g.total_score?.toString().startsWith('-') ? 'text-[#CCFF00]' : 'text-white/70'}`}>{g.total_score}</span>
+                <span className={`w-8 text-right font-numbers font-bold text-xs ${g.total_score?.toString().startsWith('-') ? 'text-[#CCFF00]' : 'text-white/70'}`}>{g.total_score}</span>
                 {hasPayouts && (
                   <span className="w-16 text-right text-[10px] font-bold text-[#CCFF00]/80">{g.earnings > 0 ? fmtMoney(g.earnings) : ''}</span>
                 )}

@@ -147,11 +147,13 @@ export default function LeaderboardPage() {
             <div key={i} className="flex items-center px-4 py-2 gap-2">
               <span className={`w-7 font-numbers font-bold text-xs flex-shrink-0 ${i < 3 ? 'text-[#CCFF00]' : 'text-white/50'}`}>{g.position || i + 1}</span>
               <span className="flex-1 text-sm font-medium text-white truncate">{g.name}</span>
-              {g.is_active && <span className="text-[9px] font-bold text-green-400 flex-shrink-0">LIVE</span>}
-              <span className={`font-numbers font-bold text-sm flex-shrink-0 ${g.total_score?.toString().startsWith('-') ? 'text-[#CCFF00]' : 'text-white/70'}`}>{g.total_score}</span>
-              {hasPayouts && g.earnings > 0 && (
-                <span className="text-[10px] font-bold text-[#CCFF00]/80 flex-shrink-0">{fmtMoney(g.earnings)}</span>
-              )}
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <span className="w-6 text-[9px] font-bold text-green-400 text-right">{g.is_active ? 'LIVE' : ''}</span>
+                <span className={`w-9 text-right font-numbers font-bold text-sm ${g.total_score?.toString().startsWith('-') ? 'text-[#CCFF00]' : 'text-white/70'}`}>{g.total_score}</span>
+                {hasPayouts && (
+                  <span className="w-16 text-right text-[10px] font-bold text-[#CCFF00]/80">{g.earnings > 0 ? fmtMoney(g.earnings) : ''}</span>
+                )}
+              </div>
             </div>
           ))}
         </div>

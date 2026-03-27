@@ -1332,6 +1332,20 @@ HISTORY = [
         {"name": "Masters", "winners": ["Mike Walters", "Jason Depp", "Jeff Nagel"]}]},
     {"year": 2015, "tournaments": [
         {"name": "Masters", "winners": ["Vance Hodges", "Adam Haase", "Scott Resch"]}]},
+    {"year": 2014, "tournaments": [
+        {"name": "Masters", "winners": ["Clark Odom", "Jason Depp", "Jeff Nagel"]}]},
+    {"year": 2013, "tournaments": [
+        {"name": "Masters", "winners": ["Jason Depp", "Jeff Nagel", "Rob Large"]}]},
+    {"year": 2012, "tournaments": [
+        {"name": "Masters", "winners": ["Blake Gabriel", "Curtis Schoonover", "Tim Burnham"]}]},
+    {"year": 2011, "tournaments": [
+        {"name": "Masters", "winners": ["Shawn Janes", "Blake Gabriel", "John Babcock"]}]},
+    {"year": 2010, "tournaments": [
+        {"name": "Masters", "winners": ["Curtis Schoonover", "Andrew Barden", "Dave Magurno"]}]},
+    {"year": 2009, "tournaments": [
+        {"name": "Masters", "winners": ["Vance Hodges", "Jeff Nagel", "Tim Burnham"]}]},
+    {"year": 2008, "tournaments": [
+        {"name": "Masters", "winners": ["Curtis Schoonover", "Vance Hodges", "Tim Burnham"]}]},
 ]
 
 @api_router.get("/history")

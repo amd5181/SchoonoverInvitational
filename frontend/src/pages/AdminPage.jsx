@@ -73,6 +73,7 @@ export default function AdminPage() {
   const [oddsDialog, setOddsDialog] = useState({ open: false, slot: null });
   const [oddsText, setOddsText] = useState('');
   const [teamsDialog, setTeamsDialog] = useState({ open: false, tournament: null, teams: [] });
+  const [teamsSearch, setTeamsSearch] = useState('');
   const [statsDialog, setStatsDialog] = useState({ open: false, tournament: null, teams: [] });
   const [editingTeam, setEditingTeam] = useState(null);
   const [editGolfers, setEditGolfers] = useState([]);
@@ -1074,7 +1075,7 @@ export default function AdminPage() {
 
       {/* ── View Teams Dialog ── */}
       <Dialog open={teamsDialog.open} onOpenChange={(open) => {
-        if (!open) { setTeamsDialog({ open: false, tournament: null, teams: [] }); setEditingTeam(null); setEditGolfers([]); }
+        if (!open) { setTeamsDialog({ open: false, tournament: null, teams: [] }); setEditingTeam(null); setEditGolfers([]); setTeamsSearch(''); }
       }}>
         <DialogContent className="sm:max-w-2xl h-[85vh] flex flex-col" data-testid="teams-dialog">
           <DialogHeader>
@@ -1090,6 +1091,18 @@ export default function AdminPage() {
               )}
             </div>
           </DialogHeader>
+
+          {!editingTeam && teamsDialog.teams.length > 0 && (
+            <div className="px-0 pb-1">
+              <input
+                type="text"
+                placeholder="Search by manager name..."
+                value={teamsSearch}
+                onChange={e => setTeamsSearch(e.target.value)}
+                className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B4332]/30"
+              />
+            </div>
+          )}
 
           {editingTeam ? (
             <div className="flex-1 overflow-auto">
@@ -1152,7 +1165,9 @@ export default function AdminPage() {
                 </div>
               ) : (
                 <div className="space-y-3 pr-2">
-                  {teamsDialog.teams.map(team => (
+                  {teamsDialog.teams.filter(team =>
+                    !teamsSearch.trim() || team.user_name?.toLowerCase().includes(teamsSearch.trim().toLowerCase())
+                  ).map(team => (
                     <div key={team.id} className="bg-slate-50 rounded-lg p-3">
                       <div className="flex items-center justify-between mb-2">
                         <div>

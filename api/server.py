@@ -431,15 +431,18 @@ async def espn_get_field(event_id, event_date=None):
             # WD / CUT detection via total_ls:
             # ESPN pre-allocates 4 linescore slots for every active player from day one.
             # Players who are out of the tournament (WD, CUT, DQ) have their slots trimmed
-            # to only the rounds they played (total_ls < STANDARD_ROUNDS).
-            # This is reliable mid-tournament regardless of how many rounds have been played.
+            # to only the rounds they played (total_ls < effective_max).
+            # Only apply this check once 2+ rounds are complete — after round 1, ESPN may
+            # only issue 1 linescore slot per player, making everyone look like a WD.
             #   - real_rounds < 2  → withdrew before completing 2 rounds → WD
             #   - real_rounds >= 2 → completed cut rounds but didn't advance → CUT
             for g in golfers:
                 real_rounds = len(g['rounds'])
                 total_ls = g.get('total_linescores', real_rounds)
                 is_active = 'PROGRESS' in str(g.get('status', '')).upper()
-                if not g.get('is_cut') and not g.get('is_wd') and not is_active and total_ls < STANDARD_ROUNDS:
+                if (effective_max >= 2
+                        and not g.get('is_cut') and not g.get('is_wd') and not is_active
+                        and total_ls < effective_max):
                     if real_rounds < 2:
                         g['is_wd'] = True
                     else:

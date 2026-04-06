@@ -78,7 +78,11 @@ export default function MyTeamsPage() {
   const golfers = useMemo(() => {
     if (!tournament?.golfers) return [];
     let list = tournament.golfers.filter(g => g.price && g.mapping_status !== 'not_in_field');
-    if (search) list = list.filter(g => g.name.toLowerCase().includes(search.toLowerCase()));
+    if (search) {
+      const normalize = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      const q = normalize(search);
+      list = list.filter(g => normalize(g.name).includes(q));
+    }
     return list.sort((a, b) => (b.price || 0) - (a.price || 0));
   }, [tournament, search]);
 

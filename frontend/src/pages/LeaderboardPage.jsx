@@ -200,7 +200,7 @@ export default function LeaderboardPage() {
         {data?.last_updated && (
           <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-4">
             <Clock className="w-3 h-3" />
-            Last updated: {new Date(data.last_updated).toLocaleTimeString()}
+            Last updated: {new Date(data.last_updated).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' })} ET
           </div>
         )}
 

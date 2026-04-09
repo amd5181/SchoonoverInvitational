@@ -162,7 +162,8 @@ def calc_earnings_for_position(pos_str: str, payout_map: Dict[int, int],
 
     # Sum payouts for all positions the tied group occupies
     total = sum(payout_map.get(place + i, 0) for i in range(tied_count))
-    return float(total) / tied_count
+    result = float(total) / tied_count
+    return max(result, float(CUT_EARNINGS))
 
 
 def assign_positions(scores_list: list) -> list:

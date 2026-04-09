@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext } from 'react'
+import { useState, useEffect, useRef, createContext, useContext } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import LoginPage from './pages/LoginPage'
@@ -17,7 +17,29 @@ export const API = `${BACKEND_URL}/api`
 export const AuthContext = createContext(null)
 export function useAuth() { return useContext(AuthContext) }
 
+function useVersionCheck() {
+  const currentVersion = useRef(null)
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const r = await fetch(`/version.json?_=${Date.now()}`)
+        if (!r.ok) return
+        const { v } = await r.json()
+        if (currentVersion.current === null) {
+          currentVersion.current = v
+        } else if (currentVersion.current !== v) {
+          window.location.reload()
+        }
+      } catch {}
+    }
+    check()
+    const id = setInterval(check, 2 * 60 * 1000)
+    return () => clearInterval(id)
+  }, [])
+}
+
 function App() {
+  useVersionCheck()
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
 

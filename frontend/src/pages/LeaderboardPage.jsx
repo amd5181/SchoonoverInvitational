@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { API, useAuth } from '../App';
 import { Button } from '../components/ui/button';
-import { Medal, RefreshCw, Loader2, Clock, ChevronDown, ChevronUp, BarChart2, List, LayoutList, Lock, DollarSign } from 'lucide-react';
+import { Medal, RefreshCw, Loader2, Clock, ChevronDown, ChevronUp, BarChart2, List, LayoutList, Lock, DollarSign, Search, X } from 'lucide-react';
 
 const fmtMoney = (n) => {
   if (!n && n !== 0) return '-';
@@ -45,6 +45,7 @@ export default function LeaderboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [expandedStandings, setExpandedStandings] = useState(false);
   const [expanded, setExpanded] = useState(true);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     axios.get(`${API}/tournaments`)
@@ -256,11 +257,26 @@ export default function LeaderboardPage() {
                   </div>
                 ) : (
                   <>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-slate-400 font-semibold">{standings.length} teams</span>
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                        <input
+                          type="text"
+                          value={search}
+                          onChange={e => setSearch(e.target.value)}
+                          placeholder="Search teams…"
+                          className="w-full pl-8 pr-7 py-1.5 text-xs rounded-full border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#1B4332]/30 placeholder:text-slate-400"
+                        />
+                        {search && (
+                          <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                      <span className="text-xs text-slate-400 font-semibold whitespace-nowrap flex-shrink-0">{standings.length} teams</span>
                       <button
                         onClick={() => setExpanded(e => !e)}
-                        className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border-2 transition-all ${
+                        className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border-2 transition-all flex-shrink-0 ${
                           expanded
                             ? 'bg-white text-[#1B4332] border-[#1B4332] hover:bg-[#1B4332] hover:text-white'
                             : 'bg-[#1B4332] text-white border-[#1B4332] hover:bg-[#2D6A4F]'
@@ -272,11 +288,11 @@ export default function LeaderboardPage() {
 
                     {!expanded && (
                       <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
-                        {standings.map(team => <CollapsedRow key={team.team_id} team={team} />)}
+                        {standings.filter(t => !search || t.team_name.toLowerCase().includes(search.toLowerCase())).map(team => <CollapsedRow key={team.team_id} team={team} />)}
                       </div>
                     )}
 
-                    {expanded && standings.map(team => (
+                    {expanded && standings.filter(t => !search || t.team_name.toLowerCase().includes(search.toLowerCase())).map(team => (
                       <div key={team.team_id} className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden"
                         data-testid={`team-standing-${team.rank}`}>
                         <div className="flex items-center px-4 py-3 border-b border-slate-50">

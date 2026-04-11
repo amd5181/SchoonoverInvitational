@@ -323,6 +323,33 @@ async def espn_get_events(year=None):
         logger.error(f"ESPN events: {e}")
         return []
 
+ESPN_CORE_BASE = "https://sports.core.api.espn.com/v2/sports/golf/leagues/pga"
+
+async def espn_fetch_cut_statuses(event_id: str, competitor_ids: list) -> set:
+    """Concurrently fetch STATUS_CUT for all competitors via ESPN Core API.
+    Returns set of espn_ids that have a cut status."""
+    base = f"{ESPN_CORE_BASE}/events/{event_id}/competitions/{event_id}/competitors"
+    cut_ids = set()
+
+    async def fetch_one(client, player_id):
+        try:
+            resp = await client.get(f"{base}/{player_id}/status", timeout=5.0)
+            data = resp.json()
+            name = data.get('type', {}).get('name', '')
+            if 'CUT' in name.upper():
+                return player_id
+        except Exception:
+            pass
+        return None
+
+    try:
+        async with httpx.AsyncClient() as client:
+            results = await asyncio.gather(*[fetch_one(client, pid) for pid in competitor_ids])
+        cut_ids = {pid for pid in results if pid is not None}
+    except Exception as e:
+        logger.warning(f"ESPN cut status fetch failed: {e}")
+    return cut_ids
+
 async def espn_get_field(event_id, event_date=None):
     try:
         url = f"{ESPN_BASE}/scoreboard"
@@ -446,6 +473,19 @@ async def espn_get_field(event_id, event_date=None):
                         g['is_wd'] = True
                     else:
                         g['is_cut'] = True
+        # Scoreboard API omits STATUS_CUT on some tournaments (e.g. Masters).
+        # Fetch statuses from the Core API concurrently to fill the gap.
+        if golfers:
+            try:
+                espn_ids = [g['espn_id'] for g in golfers]
+                cut_ids = await espn_fetch_cut_statuses(str(event_id), espn_ids)
+                if cut_ids:
+                    for g in golfers:
+                        if g['espn_id'] in cut_ids:
+                            g['is_cut'] = True
+                            g['is_wd'] = False
+            except Exception as e:
+                logger.warning(f"ESPN Core cut status fetch skipped: {e}")
         return golfers, data
     except Exception as e:
         logger.error(f"ESPN field: {e}")

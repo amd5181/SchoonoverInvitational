@@ -418,16 +418,14 @@ async def espn_get_field(event_id, event_date=None):
                 )(next((len(ls.get('linescores', [])) for ls in reversed(all_ls) if ls.get('linescores')), 0)))()
             })
         if golfers:
-            round_counts = {}
-            for g in golfers:
-                rc = len(g['rounds'])
-                round_counts[rc] = round_counts.get(rc, 0) + 1
-            max_rounds = max(round_counts.keys()) if round_counts else 0
-
             # Standard PGA Tour event is 4 rounds. Playoff rounds add extra linescores
             # (total_ls > 4) but we cap at 4 so playoff rounds don't corrupt CUT/WD logic.
             STANDARD_ROUNDS = 4
-            effective_max = min(max_rounds, STANDARD_ROUNDS)
+            # Use max of raw ESPN linescore counts (not filtered real_rounds) to determine
+            # how many rounds are "expected". Active players get 4 slots pre-allocated by
+            # ESPN; cut/WD players get trimmed to only the rounds they played.
+            max_total_ls = max((g.get('total_linescores', 0) for g in golfers), default=0)
+            effective_max = min(max_total_ls, STANDARD_ROUNDS)
 
             # WD / CUT detection via total_ls:
             # ESPN pre-allocates 4 linescore slots for every active player from day one.

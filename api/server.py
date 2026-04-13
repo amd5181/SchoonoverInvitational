@@ -1352,6 +1352,8 @@ async def manual_refresh(tournament_id: str, user_id: str = Query(...)):
 
 # ── History ──
 HISTORY = [
+    {"year": 2026, "tournaments": [
+        {"name": "Masters", "winners": ["Craig Schmidt", "Ben Lewis", "Brad Thelen"]}]},
     {"year": 2025, "tournaments": [
         {"name": "Masters", "winners": ["Brandon Nowak", "Mike Gnaster", "Dave Magurno"]}]},
     {"year": 2024, "tournaments": [
